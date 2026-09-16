@@ -126,25 +126,25 @@ export function SimpleTxTable({
         </div>
       </div>
 
-      <div className="grid gap-2.5 md:hidden">
+      <div className="grid grid-cols-1 gap-2.5 md:hidden">
         {pageRows.map((i) => (
           <div
             key={i.id}
-            className="flex items-center gap-3 rounded-2xl border border-line/70 bg-white p-3.5 shadow-soft"
+            className="flex w-full items-center gap-3 rounded-2xl border border-line/70 bg-white p-3.5 shadow-soft"
           >
             {showMember && (
               <Avatar name={i.memberName ?? "?"} size="sm" />
             )}
             <div className="min-w-0 flex-1">
-              <div className="flex items-baseline justify-between gap-2">
+              <div className="flex min-w-0 items-baseline justify-between gap-1.5">
                 <p
-                  className={`text-base font-extrabold tracking-tight ${
+                  className={`min-w-0 truncate text-base font-extrabold tracking-tight ${
                     i.amount < 0 ? "text-rose-600" : "text-ink"
                   }`}
                 >
                   {i.amount < 0 ? `−${money(-i.amount)}` : money(i.amount)}
                 </p>
-                <div className="flex items-center gap-1.5">
+                <div className="flex shrink-0 items-center gap-1.5">
                   {i.amount < 0 && <WithdrawalChip />}
                   <StatusBadge status={i.status} />
                 </div>

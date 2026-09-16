@@ -148,7 +148,7 @@ export default async function ChallengePage({
         <StatCard label={fundamentals[3].label} value={totals.count} icon={Receipt} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         <Card className="lg:col-span-3">
           <CardHeader
             title="Current Collection"

@@ -179,7 +179,7 @@ export default async function DashboardPage() {
         )}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         <Card className="lg:col-span-3">
           <CardHeader
             title={isAdmin ? "Collective monthly hulog" : "Your monthly hulog"}
@@ -257,7 +257,7 @@ export default async function DashboardPage() {
                           <span className="font-medium text-ink-soft/60">this month</span>
                         </p>
                       </div>
-                      <div className="text-right">
+                      <div className="shrink-0 text-right">
                         <p className="text-sm font-extrabold text-ink">{money(total)}</p>
                         <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-soft/50">
                           total

@@ -70,7 +70,7 @@ export function AppShell({
       : pathname.startsWith(href);
 
   return (
-    <div className="min-h-dvh">
+    <div className="flex min-h-dvh flex-col">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-line/70 bg-white lg:flex">
         <div className="flex h-16 items-center gap-2.5 px-6">
           <PiggyLogo />
@@ -154,7 +154,7 @@ export function AppShell({
         </div>
       </aside>
 
-      <div className="lg:pl-64">
+      <div className="flex-1 lg:pl-64">
         <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-line/70 bg-mist/85 px-4 backdrop-blur-md lg:px-8">
           <div className="flex items-center gap-2.5 lg:hidden">
             <PiggyLogo />
@@ -194,7 +194,7 @@ export function AppShell({
         </main>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line/70 bg-white/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden">
+      <nav className="sticky bottom-0 z-30 mt-auto border-t border-line/70 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden">
         <div className="mx-auto flex max-w-lg items-center justify-around px-2 py-1.5">
           {mobNav.slice(0, 2).map((item) => (
             <MobileNavLink key={item.href} item={item} active={isActive(item.href)} />

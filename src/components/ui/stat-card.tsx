@@ -38,7 +38,7 @@ export function StatCard({
             {label}
           </p>
           <p
-            className={`mt-1.5 truncate text-2xl font-extrabold tracking-tight ${
+            className={`mt-1.5 break-words text-xl leading-tight font-extrabold tracking-tight tabular-nums sm:text-2xl ${
               tone === "brand" ? "text-white" : "text-ink"
             }`}
           >
