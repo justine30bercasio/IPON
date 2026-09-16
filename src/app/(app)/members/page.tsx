@@ -35,10 +35,11 @@ export default async function MembersPage() {
       <div className="flex items-center gap-3 rounded-2xl border border-brand-200 bg-brand-50/60 px-4 py-3">
         <Users className="h-5 w-5 shrink-0 text-brand-600" />
         <p className="text-sm font-medium text-brand-900">
-          {members.length} registered {members.length === 1 ? "member" : "members"} · admin-only view.
+          {members.length} registered {members.length === 1 ? "member" : "members"} · admin-only
+          view.
         </p>
       </div>
-      <MembersManager members={members} />
+      <MembersManager members={members} currentUserId={user.id} />
     </div>
   );
 }

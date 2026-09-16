@@ -8,17 +8,25 @@ import {
   Search,
   Users,
   Plus,
+  Shield,
+  ShieldOff,
+  UserX,
+  UserCheck,
+  Trash2,
 } from "lucide-react";
 import {
   updateMemberProfileAction,
   resetUserPasswordAction,
   adminAddMembersAction,
+  toggleUserRoleAction,
+  toggleUserActiveAction,
+  deleteUserAction,
 } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
 import { Input, Field, Textarea } from "@/components/ui/input";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Modal } from "@/components/ui/modal";
+import { Modal, ConfirmDialog } from "@/components/ui/modal";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { toast } from "@/components/ui/toast";
 
@@ -34,11 +42,19 @@ export interface GlobalMember {
   challengeNames: string[];
 }
 
-export function MembersManager({ members }: { members: GlobalMember[] }) {
+export function MembersManager({
+  members,
+  currentUserId,
+}: {
+  members: GlobalMember[];
+  currentUserId: string;
+}) {
   const router = useRouter();
   const [q, setQ] = React.useState("");
   const [editing, setEditing] = React.useState<GlobalMember | null>(null);
   const [resetting, setResetting] = React.useState<GlobalMember | null>(null);
+  const [deactivating, setDeactivating] = React.useState<GlobalMember | null>(null);
+  const [deleting, setDeleting] = React.useState<GlobalMember | null>(null);
   const [addOpen, setAddOpen] = React.useState(false);
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
@@ -98,6 +114,48 @@ export function MembersManager({ members }: { members: GlobalMember[] }) {
       toast("error", "Couldn't reset", res.error);
     }
   };
+
+  const toggleRole = async (m: GlobalMember) => {
+    setBusy(true);
+    const res = await toggleUserRoleAction(m.id);
+    setBusy(false);
+    if (res.ok) {
+      toast("success", "Role updated", res.message);
+      router.refresh();
+    } else {
+      toast("error", "Couldn't update role", res.error);
+    }
+  };
+
+  const confirmDeactivate = async () => {
+    if (!deactivating) return;
+    setBusy(true);
+    const res = await toggleUserActiveAction(deactivating.id);
+    setBusy(false);
+    setDeactivating(null);
+    if (res.ok) {
+      toast("success", "Account updated", res.message);
+      router.refresh();
+    } else {
+      toast("error", "Couldn't update account", res.error);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleting) return;
+    setBusy(true);
+    const res = await deleteUserAction(deleting.id);
+    setBusy(false);
+    setDeleting(null);
+    if (res.ok) {
+      toast("success", "User deleted", res.message);
+      router.refresh();
+    } else {
+      toast("error", "Couldn't delete", res.error);
+    }
+  };
+
+  const self = (id: string) => id === currentUserId;
 
   return (
     <div className="space-y-4">
@@ -159,6 +217,24 @@ export function MembersManager({ members }: { members: GlobalMember[] }) {
                   <td className="px-5 py-3">
                     <div className="flex justify-end gap-1.5">
                       <button
+                        onClick={() => toggleRole(m)}
+                        disabled={self(m.id) || busy}
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft/60 transition-colors enabled:hover:bg-indigo-50 enabled:hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+                        title={
+                          self(m.id)
+                            ? "This is you"
+                            : m.role === "ADMIN"
+                              ? "Demote to member"
+                              : "Make admin"
+                        }
+                      >
+                        {m.role === "ADMIN" ? (
+                          <ShieldOff className="h-4 w-4" />
+                        ) : (
+                          <Shield className="h-4 w-4" />
+                        )}
+                      </button>
+                      <button
                         onClick={() => {
                           setEditing(m);
                           setName(m.name);
@@ -179,6 +255,32 @@ export function MembersManager({ members }: { members: GlobalMember[] }) {
                         title="Reset password"
                       >
                         <KeyRound className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => setDeactivating(m)}
+                        disabled={self(m.id) || busy}
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft/60 transition-colors enabled:hover:bg-slate-100 enabled:hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                        title={
+                          self(m.id)
+                            ? "This is you"
+                            : m.isActive
+                              ? "Set inactive"
+                              : "Re-activate"
+                        }
+                      >
+                        {m.isActive ? (
+                          <UserX className="h-4 w-4" />
+                        ) : (
+                          <UserCheck className="h-4 w-4" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => setDeleting(m)}
+                        disabled={self(m.id) || busy}
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft/60 transition-colors enabled:hover:bg-rose-50 enabled:hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-40"
+                        title={self(m.id) ? "This is you" : "Delete user"}
+                      >
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
                   </td>
@@ -208,7 +310,25 @@ export function MembersManager({ members }: { members: GlobalMember[] }) {
                     {m.isActive ? "Active" : "Inactive"}
                   </span>
                 </p>
-                <div className="flex gap-1">
+                <div className="flex gap-1 flex-wrap">
+                  <button
+                    onClick={() => toggleRole(m)}
+                    disabled={self(m.id) || busy}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-50 text-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    title={
+                      self(m.id)
+                        ? "This is you"
+                        : m.role === "ADMIN"
+                          ? "Demote to member"
+                          : "Make admin"
+                    }
+                  >
+                    {m.role === "ADMIN" ? (
+                      <ShieldOff className="h-3.5 w-3.5" />
+                    ) : (
+                      <Shield className="h-3.5 w-3.5" />
+                    )}
+                  </button>
                   <button
                     onClick={() => {
                       setEditing(m);
@@ -228,6 +348,26 @@ export function MembersManager({ members }: { members: GlobalMember[] }) {
                     className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-50 text-amber-700"
                   >
                     <KeyRound className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setDeactivating(m)}
+                    disabled={self(m.id) || busy}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    title={self(m.id) ? "This is you" : m.isActive ? "Set inactive" : "Re-activate"}
+                  >
+                    {m.isActive ? (
+                      <UserX className="h-3.5 w-3.5" />
+                    ) : (
+                      <UserCheck className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setDeleting(m)}
+                    disabled={self(m.id) || busy}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-50 text-rose-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    title={self(m.id) ? "This is you" : "Delete user"}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
               </div>
@@ -293,6 +433,40 @@ export function MembersManager({ members }: { members: GlobalMember[] }) {
           </div>
         </div>
       </Modal>
+
+      <ConfirmDialog
+        open={!!deactivating}
+        onClose={() => setDeactivating(null)}
+        onConfirm={confirmDeactivate}
+        title={deactivating?.isActive ? `Deactivate ${deactivating?.name}?` : `Re-activate ${deactivating?.name}?`}
+        description={
+          deactivating?.isActive
+            ? "They will be locked out immediately and won't be able to sign in until you re-activate them. Their data and hulog history are kept."
+            : "They will be able to sign in again with their existing account and data."
+        }
+        confirmLabel={deactivating?.isActive ? "Deactivate" : "Re-activate"}
+        danger={!!deactivating?.isActive}
+        loading={busy}
+      />
+
+      <ConfirmDialog
+        open={!!deleting}
+        onClose={() => setDeleting(null)}
+        onConfirm={confirmDelete}
+        title={`Permanently delete ${deleting?.name}?`}
+        description={
+          <>
+            This <span className="font-bold">cannot be undone</span>. It permanently removes their
+            membership, all of their transactions (hulog history), notifications, and any
+            challenges they created.
+          </>
+        }
+        confirmLabel="Delete user"
+        danger
+        loading={busy}
+        requireText="DELETE"
+        confirmHint="Type DELETE to confirm"
+      />
 
       <AddMembersModal open={addOpen} onClose={() => setAddOpen(false)} />
     </div>

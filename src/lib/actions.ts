@@ -425,6 +425,16 @@ export async function addHulogAction(
       },
     });
   } else {
+    await prisma.notification.create({
+      data: {
+        userId: user.id,
+        challengeId: challenge.id,
+        type: "hulog",
+        title: `Your ₱${amount.toLocaleString("en-PH")} hulog was recorded`,
+        body: `Submitted for ${period}. It will be counted once the organizer confirms it.`,
+        link: "/hulog",
+      },
+    });
     await createAdminNotification(
       challenge,
       user.name,
@@ -569,13 +579,28 @@ export async function voidTransactionAction(
 ): Promise<ActionResult> {
   const user = await requireUser();
   if (user.role !== "ADMIN") return { ok: false, error: "Admin access required." };
-  const tx = await prisma.hulogTransaction.findUnique({ where: { id: transactionId } });
+  const tx = await prisma.hulogTransaction.findUnique({
+    where: { id: transactionId },
+    include: { member: { select: { userId: true } } },
+  });
   if (!tx) return { ok: false, error: "Transaction not found." };
 
   await prisma.hulogTransaction.update({
     where: { id: tx.id },
     data: { status: "VOIDED", confirmedByUserId: user.id, confirmedAt: new Date() },
   });
+  if (tx.member.userId !== user.id) {
+    await prisma.notification.create({
+      data: {
+        userId: tx.member.userId,
+        challengeId: tx.challengeId,
+        type: "hulog",
+        title: `Your ₱${Math.abs(tx.amount).toLocaleString("en-PH")} hulog was voided`,
+        body: `Voided by ${user.name}. This entry no longer counts toward your total.`,
+        link: "/hulog",
+      },
+    });
+  }
   revalidateAll();
   return { ok: true, message: "Transaction voided." };
 }
@@ -936,6 +961,57 @@ async function createAdminNotification(
       link: `/challenges/${challenge.id}`,
     },
   });
+}
+
+export async function toggleUserRoleAction(userId: string): Promise<ActionResult> {
+  const user = await requireAdmin();
+  if (user.id === userId) return { ok: false, error: "You can't change your own role." };
+  const target = await prisma.user.findUnique({ where: { id: userId } });
+  if (!target) return { ok: false, error: "User not found." };
+  const next: "ADMIN" | "MEMBER" = target.role === "ADMIN" ? "MEMBER" : "ADMIN";
+  await prisma.user.update({ where: { id: userId }, data: { role: next } });
+  revalidateAll();
+  return {
+    ok: true,
+    message:
+      next === "ADMIN"
+        ? `${target.name} is now an admin.`
+        : `${target.name} is now a regular member.`,
+  };
+}
+
+export async function toggleUserActiveAction(userId: string): Promise<ActionResult> {
+  const user = await requireAdmin();
+  if (user.id === userId) return { ok: false, error: "You can't deactivate your own account." };
+  const target = await prisma.user.findUnique({ where: { id: userId } });
+  if (!target) return { ok: false, error: "User not found." };
+  const next = !target.isActive;
+  await prisma.user.update({ where: { id: userId }, data: { isActive: next } });
+  revalidateAll();
+  return {
+    ok: true,
+    message: next
+      ? `${target.name} is active again and can sign in.`
+      : `${target.name} is now inactive and can no longer sign in.`,
+  };
+}
+
+export async function deleteUserAction(userId: string): Promise<ActionResult> {
+  const user = await requireAdmin();
+  if (user.id === userId) return { ok: false, error: "You can't delete your own account." };
+  const target = await prisma.user.findUnique({ where: { id: userId } });
+  if (!target) return { ok: false, error: "User not found." };
+
+  await prisma.$transaction([
+    prisma.challenge.deleteMany({ where: { createdById: userId } }),
+    prisma.challengeMember.deleteMany({ where: { userId } }),
+    prisma.notification.deleteMany({ where: { userId } }),
+    prisma.activityLog.deleteMany({ where: { userId } }),
+    prisma.passwordReset.deleteMany({ where: { userId } }),
+    prisma.user.delete({ where: { id: userId } }),
+  ]);
+  revalidateAll();
+  return { ok: true, message: `${target.name} was deleted permanently.` };
 }
 
 async function getOrCreateChallengeForAdmin(

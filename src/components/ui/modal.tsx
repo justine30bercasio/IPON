@@ -98,6 +98,9 @@ export function ConfirmDialog({
   confirmLabel = "Confirm",
   danger = false,
   loading,
+  requireText,
+  confirmHint,
+  confirmPrefix,
 }: {
   open: boolean;
   onClose: () => void;
@@ -107,18 +110,29 @@ export function ConfirmDialog({
   confirmLabel?: string;
   danger?: boolean;
   loading?: boolean;
+  requireText?: string;
+  confirmHint?: string;
+  confirmPrefix?: string;
 }) {
+  const [typed, setTyped] = React.useState("");
+  const unlocked = !requireText || typed === requireText;
+
+  const handleClose = React.useCallback(() => {
+    setTyped("");
+    onClose();
+  }, [onClose]);
+
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       title={title}
       description={description}
       size="sm"
       footer={
         <>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             disabled={loading}
             className="inline-flex h-10 items-center justify-center rounded-full border border-line px-4 text-sm font-semibold text-ink-soft transition-colors hover:bg-mist disabled:opacity-50"
           >
@@ -126,7 +140,7 @@ export function ConfirmDialog({
           </button>
           <button
             onClick={onConfirm}
-            disabled={loading}
+            disabled={loading || !unlocked}
             className={`inline-flex h-10 items-center justify-center rounded-full px-4 text-sm font-semibold text-white transition-colors disabled:opacity-50 ${
               danger ? "bg-rose-600 hover:bg-rose-700" : "bg-brand-600 hover:bg-brand-700"
             }`}
@@ -154,6 +168,28 @@ export function ConfirmDialog({
           )}
         </div>
       </div>
+      {requireText && (
+        <div className="mt-4">
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-ink-soft/60">
+            {confirmHint ?? `Type "${requireText}" to confirm`}
+          </p>
+          <div className="relative flex items-center">
+            {confirmPrefix && (
+              <span className="pointer-events-none absolute left-3.5 text-sm font-semibold text-ink-soft/40">
+                {confirmPrefix}
+              </span>
+            )}
+            <input
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              autoFocus
+              className="h-10 w-full rounded-full border border-line bg-white px-3.5 text-sm font-medium text-ink outline-none transition-colors focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:opacity-50"
+              style={confirmPrefix ? { paddingLeft: 60 } : undefined}
+              placeholder={requireText}
+            />
+          </div>
+        </div>
+      )}
     </Modal>
   );
 }
