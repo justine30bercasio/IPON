@@ -1,0 +1,324 @@
+"use client";
+
+import * as React from "react";
+import { useRouter } from "next/navigation";
+import {
+  Pencil,
+  KeyRound,
+  Search,
+  Users,
+  Plus,
+} from "lucide-react";
+import {
+  updateMemberProfileAction,
+  resetUserPasswordAction,
+  adminAddMembersAction,
+} from "@/lib/actions";
+import { Button } from "@/components/ui/button";
+import { Input, Field, Textarea } from "@/components/ui/input";
+import { Avatar } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Modal } from "@/components/ui/modal";
+import { toast } from "@/components/ui/toast";
+
+export interface GlobalMember {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  role: string;
+  isActive: boolean;
+  createdAt: string;
+  challengeCount: number;
+  challengeNames: string[];
+}
+
+export function MembersManager({ members }: { members: GlobalMember[] }) {
+  const router = useRouter();
+  const [q, setQ] = React.useState("");
+  const [editing, setEditing] = React.useState<GlobalMember | null>(null);
+  const [resetting, setResetting] = React.useState<GlobalMember | null>(null);
+  const [addOpen, setAddOpen] = React.useState(false);
+  const [name, setName] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [phone, setPhone] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+
+  const filtered = members.filter((m) => {
+    const needle = q.toLowerCase();
+    return (
+      !needle ||
+      m.name.toLowerCase().includes(needle) ||
+      m.email.toLowerCase().includes(needle)
+    );
+  });
+
+  const saveProfile = async () => {
+    if (!editing) return;
+    const fd = new FormData();
+    fd.set("name", name);
+    fd.set("email", email);
+    fd.set("phone", phone);
+    setBusy(true);
+    const res = await updateMemberProfileAction(editing.id, null, fd);
+    setBusy(false);
+    if (res.ok) {
+      toast("success", "Member updated", res.message);
+      setEditing(null);
+      router.refresh();
+    } else {
+      toast("error", "Couldn't update", res.error);
+    }
+  };
+
+  const resetPassword = async () => {
+    if (!resetting) return;
+    const fd = new FormData();
+    fd.set("password", password);
+    setBusy(true);
+    const res = await resetUserPasswordAction(resetting.id, null, fd);
+    setBusy(false);
+    if (res.ok) {
+      toast("success", "Password reset", res.message);
+      setResetting(null);
+      setPassword("");
+    } else {
+      toast("error", "Couldn't reset", res.error);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft/40" />
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search by name or email…"
+            className="pl-10"
+          />
+        </div>
+        <Button onClick={() => setAddOpen(true)}>
+          <Plus className="h-4 w-4" /> Add member
+        </Button>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-line/70 bg-white shadow-soft">
+        <div className="hidden overflow-x-auto sm:block">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-line/70 bg-mist/60 text-[11px] uppercase tracking-wider text-ink-soft/60">
+                <th className="px-5 py-3 text-left font-bold">Member</th>
+                <th className="px-5 py-3 text-left font-bold">Role</th>
+                <th className="px-5 py-3 text-left font-bold">Challenges</th>
+                <th className="px-5 py-3 font-bold">Status</th>
+                <th className="px-5 py-3 text-right font-bold">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((m) => (
+                <tr key={m.id} className="border-b border-line/40 last:border-0 hover:bg-mist/40">
+                  <td className="px-5 py-3">
+                    <div className="flex items-center gap-3">
+                      <Avatar name={m.name} size="sm" />
+                      <div className="min-w-0">
+                        <p className="truncate font-bold text-ink">{m.name}</p>
+                        <p className="truncate text-xs text-ink-soft/70">{m.email}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-5 py-3">
+                    <Badge tone={m.role === "ADMIN" ? "primary" : "neutral"}>
+                      {m.role === "ADMIN" ? "Admin" : "Member"}
+                    </Badge>
+                  </td>
+                  <td className="px-5 py-3">
+                    <p className="font-semibold text-ink">{m.challengeCount}</p>
+                    <p className="max-w-40 truncate text-xs text-ink-soft/60">
+                      {m.challengeNames.join(", ") || "—"}
+                    </p>
+                  </td>
+                  <td className="px-5 py-3 text-center">
+                    <Badge tone={m.isActive ? "success" : "neutral"}>
+                      {m.isActive ? "Active" : "Inactive"}
+                    </Badge>
+                  </td>
+                  <td className="px-5 py-3">
+                    <div className="flex justify-end gap-1.5">
+                      <button
+                        onClick={() => {
+                          setEditing(m);
+                          setName(m.name);
+                          setEmail(m.email);
+                          setPhone(m.phone ?? "");
+                        }}
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft/60 transition-colors hover:bg-brand-50 hover:text-brand-700"
+                        title="Edit profile"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setResetting(m);
+                          setPassword("");
+                        }}
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft/60 transition-colors hover:bg-amber-50 hover:text-amber-700"
+                        title="Reset password"
+                      >
+                        <KeyRound className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex flex-col gap-1.5 p-3 sm:hidden">
+          {filtered.map((m) => (
+            <div key={m.id} className="rounded-xl border border-line/60 p-3">
+              <div className="flex items-center gap-3">
+                <Avatar name={m.name} size="sm" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-ink">{m.name}</p>
+                  <p className="truncate text-xs text-ink-soft/70">{m.email}</p>
+                </div>
+                <Badge tone={m.role === "ADMIN" ? "primary" : "neutral"}>
+                  {m.role === "ADMIN" ? "Admin" : "Member"}
+                </Badge>
+              </div>
+              <div className="mt-2 flex items-center justify-between">
+                <p className="text-xs text-ink-soft/60">
+                  {m.challengeCount} challenge{m.challengeCount === 1 ? "" : "s"} ·{" "}
+                  <span className={m.isActive ? "text-emerald-600" : "text-ink-soft/50"}>
+                    {m.isActive ? "Active" : "Inactive"}
+                  </span>
+                </p>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => {
+                      setEditing(m);
+                      setName(m.name);
+                      setEmail(m.email);
+                      setPhone(m.phone ?? "");
+                    }}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-mist text-ink-soft/70"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setResetting(m);
+                      setPassword("");
+                    }}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-50 text-amber-700"
+                  >
+                    <KeyRound className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {filtered.length === 0 && (
+          <div className="flex flex-col items-center gap-2 py-10 text-center">
+            <Users className="h-8 w-8 text-ink-soft/30" />
+            <p className="text-sm font-bold text-ink">No members found</p>
+            <p className="text-xs text-ink-soft/70">Try a different search.</p>
+          </div>
+        )}
+      </div>
+
+      <Modal open={!!editing} onClose={() => setEditing(null)} title="Edit member" size="md">
+        <div className="flex flex-col gap-4">
+          <Field label="Full Name">
+            <Input value={name} onChange={(e) => setName(e.target.value)} />
+          </Field>
+          <Field label="Email">
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </Field>
+          <Field label="Phone">
+            <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+63 9xx xxx xxxx" />
+          </Field>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setEditing(null)}>Cancel</Button>
+            <Button onClick={saveProfile} loading={busy}>Save changes</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={!!resetting} onClose={() => setResetting(null)} title="Reset password" size="sm">
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-ink-soft">
+            Set a new password for <span className="font-bold text-ink">{resetting?.name}</span>.
+          </p>
+          <Field label="New Password">
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="At least 6 characters"
+            />
+          </Field>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setResetting(null)}>Cancel</Button>
+            <Button onClick={resetPassword} loading={busy} variant="secondary">
+              <KeyRound className="h-4 w-4" /> Set password
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <AddMembersModal open={addOpen} onClose={() => setAddOpen(false)} />
+    </div>
+  );
+}
+
+function AddMembersModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const router = useRouter();
+  const [error, setError] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+
+  const save = async (fd: FormData) => {
+    setSaving(true);
+    const res = await adminAddMembersAction(null, fd);
+    setSaving(false);
+    if (res.ok) {
+      toast("success", res.message ?? "Members created");
+      router.refresh();
+      onClose();
+    } else {
+      setError(res.error);
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Add member"
+      description="One per line: email, Full Name. New accounts get the default password ipon12345, which you can reset right after."
+      size="md"
+    >
+      <form action={save} className="flex flex-col gap-4">
+        <Field label="Members" hint="Format: email, name">
+          <Textarea
+            name="members"
+            rows={6}
+            placeholder={"jane.doe@gmail.com, Jane Doe\njohn.cruz@gmail.com, John Cruz"}
+            autoFocus
+          />
+        </Field>
+        {error && <p className="text-xs font-medium text-rose-600">{error}</p>}
+        <div className="flex justify-end gap-3">
+          <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button type="submit" loading={saving}>Add members</Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}

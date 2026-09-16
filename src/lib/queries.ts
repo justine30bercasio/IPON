@@ -1,0 +1,229 @@
+import { prisma } from "@/lib/prisma";
+import type { TransactionStatus } from "@prisma/client";
+
+export interface MonthlySeriesPoint {
+  key: string;
+  month: string;
+  total: number;
+  count: number;
+  contributors: number;
+}
+
+export async function getChallengeMonthlySeries(
+  challengeId: string,
+  months = 8
+): Promise<MonthlySeriesPoint[]> {
+  const start = new Date();
+  start.setMonth(start.getMonth() - (months - 1));
+  start.setDate(1);
+  start.setHours(0, 0, 0, 0);
+
+  const txs = await prisma.hulogTransaction.findMany({
+    where: {
+      challengeId,
+      status: { not: "VOIDED" },
+      transactionDate: { gte: start },
+    },
+    select: { amount: true, transactionDate: true, memberId: true },
+    orderBy: { transactionDate: "asc" },
+  });
+
+  const byMonth = new Map<string, { total: number; count: number; members: Set<string> }>();
+  for (const tx of txs) {
+    const d = tx.transactionDate;
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const bucket = byMonth.get(key) ?? { total: 0, count: 0, members: new Set<string>() };
+    bucket.total += tx.amount;
+    bucket.count += 1;
+    bucket.members.add(tx.memberId);
+    byMonth.set(key, bucket);
+  }
+
+  const now = new Date();
+  const points: MonthlySeriesPoint[] = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const bucket = byMonth.get(key);
+    points.push({
+      key,
+      month: d.toLocaleDateString("en-PH", { month: "short" }),
+      total: bucket?.total ?? 0,
+      count: bucket?.count ?? 0,
+      contributors: bucket?.members.size ?? 0,
+    });
+  }
+  return points;
+}
+
+export interface MemberAggregate {
+  memberId: string;
+  userId: string;
+  name: string;
+  email: string;
+  status: string;
+  isAdmin: boolean;
+  total: number;
+  count: number;
+  thisMonth: number;
+  lastHulog: string | null;
+  lastHulogAmount: number | null;
+}
+
+export async function getMemberAggregates(
+  challengeId: string
+): Promise<MemberAggregate[]> {
+  const members = await prisma.challengeMember.findMany({
+    where: { challengeId },
+    include: {
+      user: { select: { id: true, name: true, email: true } },
+      transactions: {
+        where: { status: { not: "VOIDED" } },
+        select: { amount: true, transactionDate: true },
+        orderBy: { transactionDate: "desc" },
+      },
+    },
+  });
+
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  return members.map((m) => {
+    let total = 0;
+    let count = 0;
+    let thisMonth = 0;
+    for (const tx of m.transactions) {
+      total += tx.amount;
+      count += 1;
+      if (tx.transactionDate >= monthStart) thisMonth += tx.amount;
+    }
+    const last = m.transactions[0];
+    return {
+      memberId: m.id,
+      userId: m.user.id,
+      name: m.user.name,
+      email: m.user.email,
+      status: m.status,
+      isAdmin: m.isAdmin,
+      total,
+      count,
+      thisMonth,
+      lastHulog: last ? last.transactionDate.toISOString() : null,
+      lastHulogAmount: last?.amount ?? null,
+    };
+  });
+}
+
+export async function getChallengeTotals(challengeId: string) {
+  const txs = await prisma.hulogTransaction.findMany({
+    where: { challengeId, status: { not: "VOIDED" } },
+    select: { amount: true, transactionDate: true },
+  });
+  const total = txs.reduce((s, t) => s + t.amount, 0);
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const thisMonth = txs
+    .filter((t) => t.transactionDate >= monthStart)
+    .reduce((s, t) => s + t.amount, 0);
+  return { total, count: txs.length, thisMonth };
+}
+
+export interface PersonalStats {
+  total: number;
+  thisMonth: number;
+  count: number;
+  latest: {
+    amount: number;
+    date: string;
+    period: string;
+    challengeName: string;
+    status: TransactionStatus;
+  } | null;
+  monthly: { key: string; month: string; total: number }[];
+}
+
+export async function getPersonalStats(userId: string): Promise<PersonalStats> {
+  const memberships = await prisma.challengeMember.findMany({
+    where: { userId, status: "ACTIVE" },
+    select: { id: true },
+  });
+  const memberIds = memberships.map((m) => m.id);
+  if (memberIds.length === 0) {
+    return { total: 0, thisMonth: 0, count: 0, latest: null, monthly: [] };
+  }
+
+  const txs = await prisma.hulogTransaction.findMany({
+    where: {
+      memberId: { in: memberIds },
+      status: { not: "VOIDED" },
+    },
+    include: { challenge: { select: { name: true } } },
+    orderBy: { transactionDate: "desc" },
+  });
+
+  const total = txs.reduce((s, t) => s + t.amount, 0);
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const thisMonth = txs
+    .filter((t) => t.transactionDate >= monthStart)
+    .reduce((s, t) => s + t.amount, 0);
+
+  const byMonth = new Map<string, number>();
+  for (const t of txs) {
+    const key = `${t.transactionDate.getFullYear()}-${String(t.transactionDate.getMonth() + 1).padStart(2, "0")}`;
+    byMonth.set(key, (byMonth.get(key) ?? 0) + t.amount);
+  }
+  const monthly: PersonalStats["monthly"] = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    monthly.push({
+      key,
+      month: d.toLocaleDateString("en-PH", { month: "short" }),
+      total: byMonth.get(key) ?? 0,
+    });
+  }
+
+  const latest = txs[0];
+  return {
+    total,
+    thisMonth,
+    count: txs.length,
+    latest: latest
+      ? {
+          amount: latest.amount,
+          date: latest.transactionDate.toISOString(),
+          period: latest.collectionPeriod,
+          challengeName: latest.challenge.name,
+          status: latest.status,
+        }
+      : null,
+    monthly,
+  };
+}
+
+export async function getUnreadCount(userId: string): Promise<number> {
+  return prisma.notification.count({ where: { userId, read: false } });
+}
+
+export interface ChallengeMemberOption {
+  id: string;
+  name: string;
+}
+
+/** Active members keyed by challenge id, for the admin "record for member" picker. */
+export async function getActiveMemberOptions(
+  challengeIds: string[]
+): Promise<Record<string, ChallengeMemberOption[]>> {
+  if (challengeIds.length === 0) return {};
+  const rows = await prisma.challengeMember.findMany({
+    where: { challengeId: { in: challengeIds }, status: "ACTIVE" },
+    select: { id: true, challengeId: true, user: { select: { name: true } } },
+    orderBy: { user: { name: "asc" } },
+  });
+  const map: Record<string, ChallengeMemberOption[]> = {};
+  for (const r of rows) {
+    (map[r.challengeId] ??= []).push({ id: r.id, name: r.user.name });
+  }
+  return map;
+}

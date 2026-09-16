@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Standalone scratch/test scripts at the repo root (CommonJS, run with `node`).
+    "*.cjs",
+    "*.log",
+    "shot-*.png",
   ]),
 ]);
 

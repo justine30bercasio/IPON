@@ -33,6 +33,18 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# local database files (contain real user financial data — never commit)
+prisma/*.db
+prisma/*.db-journal
+prisma/*.sqlite
+*.sqlite3
+*.db.bak
+
+# local test artifacts
+*.log
+shot-*.png
+session-tokens.txt
+
 # vercel
 .vercel
 

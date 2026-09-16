@@ -1,0 +1,198 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+enum ChallengeStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+enum Visibility {
+  PRIVATE
+  GROUP_TOTALS
+  TRANSPARENT
+}
+
+enum Frequency {
+  MONTHLY
+  WEEKLY
+  BIWEEKLY
+  TWICE_MONTHLY
+  CUSTOM
+}
+
+enum PaymentMethod {
+  CASH
+  GCASH
+  BANK_TRANSFER
+  OTHER
+}
+
+enum TransactionStatus {
+  PENDING
+  CONFIRMED
+  VOIDED
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  username     String   @unique
+  name         String
+  passwordHash String
+  phone        String?
+  role         Role     @default(MEMBER)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  resetToken     String?
+  resetTokenExp  DateTime?
+
+  createdChallenges   Challenge[]          @relation("Organizer")
+  memberships         ChallengeMember[]
+  recordedTransactions HulogTransaction[] @relation("RecordedBy")
+  confirmedTransactions HulogTransaction[] @relation("ConfirmedBy")
+  notifications       Notification[]
+  activityLogs        ActivityLog[]
+  passwordResets      PasswordReset[]
+
+  @@index([role])
+}
+
+model Challenge {
+  id                 String          @id @default(cuid())
+  name               String
+  description        String?
+  startDate          DateTime
+  endDate            DateTime?
+  status             ChallengeStatus @default(ACTIVE)
+  visibility         Visibility      @default(GROUP_TOTALS)
+  leaderboardEnabled Boolean         @default(true)
+  allowMemberHulog   Boolean         @default(true)
+  createdById        String
+  createdBy          User            @relation("Organizer", fields: [createdById], references: [id])
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  schedules    ChallengeSchedule[]
+  members      ChallengeMember[]
+  transactions HulogTransaction[]
+  notifications Notification[]
+  activityLogs ActivityLog[]
+
+  @@index([status, createdById])
+}
+
+model ChallengeSchedule {
+  id              String    @id @default(cuid())
+  challengeId     String
+  challenge       Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  frequency       Frequency @default(MONTHLY)
+  dayOfMonth      Int?
+  secondDayOfMonth Int?
+  dayOfWeek       Int?
+  customDates     Json?
+  createdAt       DateTime  @default(now())
+
+  @@index([challengeId])
+}
+
+model ChallengeMember {
+  id          String           @id @default(cuid())
+  challengeId String
+  userId      String
+  challenge   Challenge        @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt    DateTime         @default(now())
+  status      MembershipStatus @default(ACTIVE)
+  isAdmin     Boolean          @default(false)
+
+  transactions HulogTransaction[]
+
+  @@unique([challengeId, userId])
+  @@index([userId, status])
+}
+
+model HulogTransaction {
+  id               String            @id @default(cuid())
+  challengeId      String
+  memberId         String
+  amount           Float
+  transactionDate  DateTime
+  collectionPeriod String
+  paymentMethod    PaymentMethod     @default(CASH)
+  status           TransactionStatus @default(PENDING)
+  note             String?
+  createdByUserId  String?
+  createdBy        User?             @relation("RecordedBy", fields: [createdByUserId], references: [id])
+  confirmedByUserId String?
+  confirmedBy      User?             @relation("ConfirmedBy", fields: [confirmedByUserId], references: [id])
+  confirmedAt      DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  challenge Challenge       @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  member    ChallengeMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([challengeId, transactionDate])
+  @@index([memberId, transactionDate])
+  @@index([status])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  challengeId String?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challenge Challenge? @relation(fields: [challengeId], references: [id], onDelete: SetNull)
+  type      String
+  title     String
+  body      String
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+}
+
+model ActivityLog {
+  id          String    @id @default(cuid())
+  challengeId String?
+  challenge   Challenge? @relation(fields: [challengeId], references: [id], onDelete: SetNull)
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  type        String
+  message     String
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+
+  @@index([challengeId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model PasswordReset {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String    @unique
+  used      Boolean   @default(false)
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+}
