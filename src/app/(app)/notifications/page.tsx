@@ -29,7 +29,7 @@ export default async function NotificationsPage() {
   const unread = notifications.filter((n) => !n.read).length;
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="space-y-6">
       <PageHeader
         title="Notifications"
         subtitle={

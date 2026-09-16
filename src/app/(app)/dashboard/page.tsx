@@ -13,7 +13,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { TransactionCard } from "@/components/transaction-card";
+import { SimpleTxTable } from "@/components/simple-tx-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MonthlyBarChart } from "@/components/charts";
 import { AddHulogButton } from "@/components/dashboard/add-hulog-button";
@@ -299,19 +299,19 @@ export default async function DashboardPage() {
               }
             />
           ) : (
-            <div className="grid gap-2.5 md:grid-cols-2">
-              {recentItems.map((tx) => (
-                <TransactionCard
-                  key={tx.id}
-                  amount={tx.amount}
-                  date={tx.transactionDate.toISOString()}
-                  period={`${tx.collectionPeriod} · ${tx.challengeName}`}
-                  method={tx.paymentMethod}
-                  status={tx.status}
-                  note={tx.note}
-                  memberName={tx.memberName}
-                />
-              ))}
+            <div className="overflow-hidden rounded-2xl border border-line/70 bg-white shadow-soft">
+              <SimpleTxTable
+                items={recentItems.map((tx) => ({
+                  id: tx.id,
+                  amount: tx.amount,
+                  transactionDate: tx.transactionDate.toISOString(),
+                  collectionPeriod: `${tx.collectionPeriod} · ${tx.challengeName}`,
+                  paymentMethod: tx.paymentMethod,
+                  status: tx.status,
+                  memberName: tx.memberName,
+                }))}
+                showMember={isAdmin}
+              />
             </div>
           )}
         </CardContent>

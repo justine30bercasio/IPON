@@ -139,31 +139,47 @@ export default async function ChallengeReportsPage({
             subtitle={isAdmin ? "Per-member totals" : "Contribution summary"}
           />
           <CardContent>
-            <div className="flex flex-col gap-1.5">
-              {memberAggs.length === 0 && (
-                <EmptyState emoji="👥" title="No members yet" />
-              )}
-              {memberAggs
-                .filter((m) => isAdmin || m.userId === user.id || challenge.visibility === "TRANSPARENT")
-                .sort((a, b) => b.total - a.total)
-                .map((m) => (
-                  <div
-                    key={m.memberId}
-                    className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-mist"
-                  >
-                    <Avatar name={m.name} size="sm" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-bold text-ink">{m.name}</p>
-                      <p className="text-xs text-ink-soft/70">
-                        {m.count} tx · last {m.lastHulog ? formatDate(m.lastHulog) : "—"}
-                      </p>
-                    </div>
-                    <span className="text-sm font-extrabold text-brand-700">
-                      {isAdmin || challenge.visibility !== "PRIVATE" ? money(m.total) : "•••"}
-                    </span>
-                  </div>
-                ))}
-            </div>
+            {memberAggs.length === 0 && (
+              <EmptyState emoji="👥" title="No members yet" />
+            )}
+            {memberAggs.length > 0 && (
+              <div className="overflow-hidden rounded-xl border border-line/70">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-line/70 bg-mist/60 text-[11px] uppercase tracking-wider text-ink-soft/60">
+                        <th className="px-4 py-2.5 text-left font-bold">Member</th>
+                        <th className="px-4 py-2.5 text-right font-bold">Transactions</th>
+                        <th className="px-4 py-2.5 text-right font-bold">Last Hulog</th>
+                        <th className="px-4 py-2.5 text-right font-bold">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {memberAggs
+                        .filter((m) => isAdmin || m.userId === user.id || challenge.visibility === "TRANSPARENT")
+                        .sort((a, b) => b.total - a.total)
+                        .map((m) => (
+                          <tr key={m.memberId} className="border-b border-line/40 last:border-0 hover:bg-mist/40">
+                            <td className="px-4 py-2.5">
+                              <div className="flex items-center gap-3">
+                                <Avatar name={m.name} size="sm" />
+                                <span className="truncate font-bold text-ink">{m.name}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-2.5 text-right font-medium text-ink-soft">{m.count}</td>
+                            <td className="px-4 py-2.5 text-right text-xs font-medium text-ink-soft/70">
+                              {m.lastHulog ? formatDate(m.lastHulog) : "—"}
+                            </td>
+                            <td className="px-4 py-2.5 text-right text-base font-extrabold text-brand-700">
+                              {isAdmin || challenge.visibility !== "PRIVATE" ? money(m.total) : "•••"}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 

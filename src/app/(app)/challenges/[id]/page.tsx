@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MonthlyBarChart } from "@/components/charts";
-import { TransactionCard } from "@/components/transaction-card";
+import { SimpleTxTable } from "@/components/simple-tx-table";
 import { ChallengeTabs } from "@/components/challenge/challenge-tabs";
 import { AddHulogButton } from "@/components/dashboard/add-hulog-button";
 import { notFound } from "next/navigation";
@@ -239,18 +239,19 @@ export default async function ChallengePage({
               description="Your first contribution will appear here."
             />
           ) : (
-            <div className="grid gap-2.5 md:grid-cols-2 lg:grid-cols-3">
-              {visibleRecentTx.map((tx) => (
-                <TransactionCard
-                  key={tx.id}
-                  amount={tx.amount}
-                  date={tx.transactionDate.toISOString()}
-                  period={`${tx.collectionPeriod} · ${tx.member.user.name}`}
-                  method={tx.paymentMethod}
-                  status={tx.status}
-                  note={tx.note}
-                />
-              ))}
+            <div className="overflow-hidden rounded-2xl border border-line/70 bg-white shadow-soft">
+              <SimpleTxTable
+                items={visibleRecentTx.map((tx) => ({
+                  id: tx.id,
+                  amount: tx.amount,
+                  transactionDate: tx.transactionDate.toISOString(),
+                  collectionPeriod: `${tx.collectionPeriod} · ${tx.member.user.name}`,
+                  paymentMethod: tx.paymentMethod,
+                  status: tx.status,
+                  memberName: isAdmin || showMemberAmounts ? tx.member.user.name : null,
+                }))}
+                showMember={isAdmin || showMemberAmounts}
+              />
             </div>
           )}
         </CardContent>
@@ -294,36 +295,55 @@ function LeaderboardList({
 }) {
   const medals = ["🥇", "🥈", "🥉"];
   return (
-    <div className="flex flex-col gap-1.5">
+    <>
       {ranked.length === 0 && (
         <EmptyState emoji="👥" title="No members yet" description="Add members to see the rankings." />
       )}
-      {ranked.slice(0, 8).map((m, i) => (
-        <div
-          key={m.id}
-          className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors ${
-            m.id === highlightUserId ? "bg-brand-50 ring-1 ring-brand-200" : "hover:bg-mist"
-          }`}
-        >
-          <span className="w-6 text-center text-sm font-bold text-ink-soft/60">
-            {medals[i] ?? i + 1}
-          </span>
-          <div className="flex items-center gap-2.5">
-            <Avatar name={m.name} size="sm" />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-bold text-ink">
-                {m.name}
-                {m.id === highlightUserId && (
-                  <span className="ml-1.5 text-[10px] font-bold uppercase text-brand-600">you</span>
-                )}
-              </p>
-            </div>
+      {ranked.length > 0 && (
+        <div className="overflow-hidden rounded-xl border border-line/70">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-line/70 bg-mist/60 text-[11px] uppercase tracking-wider text-ink-soft/60">
+                  <th className="px-3 py-2.5 text-center font-bold">Rank</th>
+                  <th className="px-3 py-2.5 font-bold">Member</th>
+                  <th className="px-3 py-2.5 text-right font-bold">Total Hulog</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ranked.slice(0, 8).map((m, i) => (
+                  <tr
+                    key={m.id}
+                    className={`border-b border-line/40 last:border-0 ${
+                      m.id === highlightUserId ? "bg-brand-50" : "hover:bg-mist/40"
+                    }`}
+                  >
+                    <td className="px-3 py-2.5 text-center text-sm font-bold text-ink-soft/60">
+                      {medals[i] ?? i + 1}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <Avatar name={m.name} size="sm" />
+                        <span className="truncate text-sm font-bold text-ink">
+                          {m.name}
+                          {m.id === highlightUserId && (
+                            <span className="ml-1.5 text-[10px] font-bold uppercase text-brand-600">
+                              you
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-sm font-extrabold text-ink">
+                      {showAmounts ? money(m.total) : "•••"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <span className="ml-auto text-sm font-extrabold text-ink">
-            {showAmounts ? money(m.total) : "•••"}
-          </span>
         </div>
-      ))}
-    </div>
+      )}
+    </>
   );
 }

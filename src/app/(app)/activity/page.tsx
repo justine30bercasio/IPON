@@ -57,7 +57,7 @@ export default async function ActivityPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="space-y-6">
       <PageHeader
         title="Activity"
         subtitle="The latest happenings across every challenge you're part of."
@@ -80,35 +80,50 @@ export default async function ActivityPage() {
                   day: "numeric",
                 })}
               </p>
-              <div className="rounded-2xl border border-line/70 bg-white p-3 shadow-soft">
-                {logs.map((log, i) => {
-                  const meta = typeMeta[log.type] ?? typeMeta.HULOG;
-                  const Icon = meta.icon;
-                  return (
-                    <div
-                      key={log.id}
-                      className={`flex items-center gap-3 rounded-xl px-3 py-3 hover:bg-mist/60 ${
-                        i > 0 ? "border-t border-line/50" : ""
-                      }`}
-                    >
-                      <Avatar name={log.user?.name ?? "System"} size="sm" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-ink">
-                          {log.user?.id === user.id ? "You" : (log.user?.name ?? "System")}
-                          <span className="font-normal text-ink-soft"> performed an action</span>
-                        </p>
-                        <p className="truncate text-xs text-ink-soft/70">
-                          {log.challenge ? `In “${log.challenge.name}”` : "On your account"}
-                          {" · "}
-                          {formatTimeAgo(log.createdAt)}
-                        </p>
-                      </div>
-                      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${meta.bg} ${meta.text}`}>
-                        <Icon className="h-4 w-4" />
-                      </span>
-                    </div>
-                  );
-                })}
+              <div className="overflow-hidden rounded-2xl border border-line/70 bg-white shadow-soft">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-line/70 bg-mist/60 text-[11px] uppercase tracking-wider text-ink-soft/60">
+                        <th className="px-4 py-3 font-bold">Who</th>
+                        <th className="px-4 py-3 font-bold">Action</th>
+                        <th className="px-4 py-3 font-bold">Details</th>
+                        <th className="px-4 py-3 text-right font-bold">When</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {logs.map((log) => {
+                        const meta = typeMeta[log.type] ?? typeMeta.HULOG;
+                        const Icon = meta.icon;
+                        const performer = log.user?.id === user.id ? "You" : (log.user?.name ?? "System");
+                        return (
+                          <tr key={log.id} className="border-b border-line/40 last:border-0 hover:bg-mist/40">
+                            <td className="px-4 py-3.5">
+                              <div className="flex items-center gap-3">
+                                <Avatar name={performer} size="sm" />
+                                <span className="font-bold text-ink">{performer}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <div className="flex items-center gap-2">
+                                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${meta.bg} ${meta.text}`}>
+                                  <Icon className="h-3.5 w-3.5" />
+                                </span>
+                                <span className="font-semibold text-ink-soft">{meta.label}</span>
+                              </div>
+                            </td>
+                            <td className="min-w-40 px-4 py-3.5 font-medium text-ink-soft">
+                              {log.challenge ? `In “${log.challenge.name}”` : "On your account"}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3.5 text-right text-xs font-medium text-ink-soft/70">
+                              {formatTimeAgo(log.createdAt)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           ))}
