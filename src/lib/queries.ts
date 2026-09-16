@@ -21,7 +21,7 @@ export async function getChallengeMonthlySeries(
   const txs = await prisma.hulogTransaction.findMany({
     where: {
       challengeId,
-      status: { not: "VOIDED" },
+      status: "CONFIRMED",
       transactionDate: { gte: start },
     },
     select: { amount: true, transactionDate: true, memberId: true },
@@ -194,7 +194,7 @@ export async function getPersonalStats(userId: string): Promise<PersonalStats> {
   const txs = await prisma.hulogTransaction.findMany({
     where: {
       memberId: { in: memberIds },
-      status: { not: "VOIDED" },
+      status: "CONFIRMED",
     },
     include: { challenge: { select: { name: true } } },
     orderBy: { transactionDate: "desc" },

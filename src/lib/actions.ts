@@ -434,7 +434,14 @@ export async function addHulogAction(
   }
 
   revalidateAll();
-  return { ok: true, message: kind === "withdraw" ? "Withdrawal recorded." : "Hulog recorded." };
+  return {
+    ok: true,
+    message: isAdmin
+      ? kind === "withdraw"
+        ? "Withdrawal recorded."
+        : "Hulog recorded."
+      : "Hulog submitted. Waiting for the organizer's confirmation.",
+  };
 }
 
 export async function recordHulogForMemberAction(
@@ -607,12 +614,7 @@ export async function editTransactionAction(
       collectionPeriod: period,
       paymentMethod: parseMethod(formData.get("paymentMethod")),
       note: String(formData.get("note") ?? "").trim() || null,
-      status:
-        tx.status === "CONFIRMED"
-          ? "CONFIRMED"
-          : user.role === "ADMIN"
-            ? "CONFIRMED"
-            : "PENDING",
+      status: user.role === "ADMIN" ? "CONFIRMED" : "PENDING",
     },
   });
   if (updated.status === "CONFIRMED" && !updated.confirmedByUserId && user.role === "ADMIN") {

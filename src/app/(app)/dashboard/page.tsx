@@ -34,7 +34,7 @@ export default async function DashboardPage() {
     include: {
       members: { where: { userId: user.id } },
       transactions: {
-        where: { status: { not: "VOIDED" } },
+        where: { status: "CONFIRMED" },
         select: { amount: true, transactionDate: true },
       },
     },

@@ -35,7 +35,6 @@ export function AddHulogModal({
   onClose,
   challenges,
   initialChallengeId,
-  roleLabel,
   isAdmin,
   onDone,
 }: {
@@ -43,7 +42,6 @@ export function AddHulogModal({
   onClose: () => void;
   challenges: ChallengeOption[];
   initialChallengeId?: string;
-  roleLabel?: string;
   isAdmin?: boolean;
   onDone?: () => void;
 }) {
@@ -70,11 +68,11 @@ export function AddHulogModal({
 
   React.useEffect(() => {
     if (state.ok) {
-      toast("success", "Hulog recorded!", state.message);
+      toast("success", isAdmin ? "Hulog recorded!" : "Hulog submitted!", state.message);
       router.refresh();
       onDone?.();
     }
-  }, [state, router, onDone]);
+  }, [state, router, onDone, isAdmin]);
 
   const canSubmit =
     challengeId && parseFloat(amount) > 0 && !pending && (!isWithdraw || !!memberId);
@@ -88,9 +86,9 @@ export function AddHulogModal({
       description={
         isWithdraw
           ? "Record money paid out to a member. It reduces their hulog balance."
-          : roleLabel
-            ? `Record your contribution. Any amount counts. ${roleLabel}`
-            : "Record your contribution. Any amount counts."
+          : isAdmin
+            ? "Record your contribution. Any amount counts. It's counted right away."
+            : "Record your contribution. Any amount counts. It will be counted once the organizer confirms it."
       }
     >
       <form action={formAction} className="flex flex-col gap-4">

@@ -21,12 +21,12 @@ export default async function ChallengesPage() {
     include: {
       members: { where: { status: "ACTIVE" } },
       transactions: {
-        where: { status: { not: "VOIDED" } },
+        where: { status: "CONFIRMED" },
         select: { amount: true, transactionDate: true },
       },
       schedules: true,
       _count: {
-        select: { transactions: { where: { status: { not: "VOIDED" } } } },
+        select: { transactions: { where: { status: "CONFIRMED" } } },
       },
     },
     orderBy: { createdAt: "desc" },
