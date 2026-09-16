@@ -21,7 +21,13 @@ export function StatCard({
 }) {
 
   return (
-    <Card className="group relative overflow-hidden p-5 transition-all duration-300 hover:shadow-lift hover:-translate-y-0.5">
+    <Card
+      className={`group relative overflow-hidden p-5 transition-all duration-300 hover:shadow-lift hover:-translate-y-0.5 ${
+        tone === "brand"
+          ? "border-transparent bg-gradient-to-br from-brand-600 to-brand-700 text-white"
+          : ""
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p
