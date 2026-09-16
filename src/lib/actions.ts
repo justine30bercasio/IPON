@@ -1,6 +1,5 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
@@ -59,9 +58,9 @@ export type ActionResult =
   | { ok: true; message?: string }
   | { ok: false; error: string };
 
-export async function logoutAction(): Promise<void> {
+export async function logoutAction(): Promise<ActionResult> {
   await destroySession();
-  redirect("/login");
+  return { ok: true, message: "Signed out" };
 }
 
 export async function loginAction(
@@ -76,7 +75,7 @@ export async function loginAction(
   const remember = formData.get("remember") === "on";
   const res = await loginUser(emailOrUsername, password, remember);
   if (!res.ok) return { ok: false, error: res.error };
-  redirect("/dashboard");
+  return { ok: true, message: "Welcome back!" };
 }
 
 export async function registerAction(
@@ -98,7 +97,7 @@ export async function registerAction(
   if (pwCheck) return { ok: false, error: pwCheck };
   const res = await registerUser({ name, email, username, password });
   if (!res.ok) return { ok: false, error: res.error };
-  redirect("/dashboard");
+  return { ok: true, message: "Account created!" };
 }
 
 export async function forgotPasswordAction(
@@ -131,7 +130,7 @@ export async function resetPasswordAction(
   if (pwCheck) return { ok: false, error: pwCheck };
   const res = await resetPassword(token, password);
   if (!res.ok) return { ok: false, error: res.error };
-  redirect("/dashboard");
+  return { ok: true, message: "Password updated!" };
 }
 
 export async function createChallengeAction(

@@ -3,18 +3,36 @@
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useActionState } from "react";
+import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Mail, Lock, Sparkles } from "lucide-react";
-import { loginAction, type ActionResult } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
 
-const initial: ActionResult = { ok: false, error: "" };
-
 export default function LoginPage() {
-  const [state, formAction, pending] = useActionState(loginAction, initial);
   const [showPw, setShowPw] = React.useState(false);
+  const [error, setError] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const router = useRouter();
+
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/auth/login", { method: "POST", body: new FormData(e.currentTarget) });
+      const data = await res.json();
+      if (!data.ok) {
+        setError(data.error ?? "Sign in failed. Please try again.");
+        return;
+      }
+      router.replace("/dashboard");
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   React.useEffect(() => {
     if (typeof window !== "undefined" && window.location.search.includes("loggedOut=1")) {
@@ -95,7 +113,7 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <form action={formAction} className="mt-7 flex flex-col gap-4">
+          <form onSubmit={onSubmit} className="mt-7 flex flex-col gap-4">
             <Field label="Email or Username">
               <div className="relative">
                 <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft/50" />
@@ -149,13 +167,13 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            {!state.ok && state.error && (
+            {error && (
               <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-medium text-rose-700">
-                {state.error}
+                {error}
               </div>
             )}
 
-            <Button type="submit" size="lg" loading={pending} className="mt-1">
+            <Button type="submit" size="lg" loading={busy} className="mt-1">
               Sign in
             </Button>
           </form>

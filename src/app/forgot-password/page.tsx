@@ -3,9 +3,10 @@
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useActionState } from "react";
 import { Mail, KeyRound, RotateCcw } from "lucide-react";
-import { forgotPasswordAction, resetPasswordAction, type ActionResult } from "@/lib/actions";
+import { forgotPasswordAction, type ActionResult } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
 
@@ -16,7 +17,28 @@ export default function ForgotPasswordPage() {
     forgotPasswordAction,
     initial
   );
-  const [resetState, resetAction, resetPending] = useActionState(resetPasswordAction, initial);
+  const [resetError, setResetError] = React.useState("");
+  const [resetBusy, setResetBusy] = React.useState(false);
+  const router = useRouter();
+
+  async function onReset(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setResetBusy(true);
+    setResetError("");
+    try {
+      const res = await fetch("/api/auth/reset", { method: "POST", body: new FormData(e.currentTarget) });
+      const data = await res.json();
+      if (!data.ok) {
+        setResetError(data.error ?? "Reset failed. Please try again.");
+        return;
+      }
+      router.replace("/dashboard");
+    } catch {
+      setResetError("Something went wrong. Please try again.");
+    } finally {
+      setResetBusy(false);
+    }
+  }
 
   const showReset = !!requestState.ok;
   const code = requestState.ok ? requestState.message ?? "" : "";
@@ -63,7 +85,7 @@ export default function ForgotPasswordPage() {
             </Button>
           </form>
         ) : (
-          <form action={resetAction} className="animate-fade-up flex flex-col gap-4">
+          <form onSubmit={onReset} className="animate-fade-up flex flex-col gap-4">
             <div className="rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-center">
               <p className="text-[11px] font-bold uppercase tracking-wider text-brand-700/70">
                 Your reset code · valid 15 minutes
@@ -92,13 +114,13 @@ export default function ForgotPasswordPage() {
               <Input name="confirm" type="password" placeholder="••••••••" />
             </Field>
 
-            {!resetState.ok && resetState.error && (
+            {resetError && (
               <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-medium text-rose-700">
-                {resetState.error}
+                {resetError}
               </div>
             )}
 
-            <Button type="submit" size="lg" loading={resetPending} className="mt-1">
+            <Button type="submit" size="lg" loading={resetBusy} className="mt-1">
               <RotateCcw className="h-4 w-4" />
               Reset password
             </Button>

@@ -3,17 +3,35 @@
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useActionState } from "react";
+import { useRouter } from "next/navigation";
 import { Eye, EyeOff, User, Mail, AtSign, Lock } from "lucide-react";
-import { registerAction, type ActionResult } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
 
-const initial: ActionResult = { ok: false, error: "" };
-
 export default function RegisterPage() {
-  const [state, formAction, pending] = useActionState(registerAction, initial);
   const [showPw, setShowPw] = React.useState(false);
+  const [error, setError] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const router = useRouter();
+
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/auth/register", { method: "POST", body: new FormData(e.currentTarget) });
+      const data = await res.json();
+      if (!data.ok) {
+        setError(data.error ?? "Registration failed. Please try again.");
+        return;
+      }
+      router.replace("/dashboard");
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center px-5 py-10">
@@ -26,7 +44,7 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <form action={formAction} className="animate-fade-up flex flex-col gap-4">
+        <form onSubmit={onSubmit} className="animate-fade-up flex flex-col gap-4">
           <Field label="Full Name">
             <div className="relative">
               <User className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft/50" />
@@ -65,13 +83,13 @@ export default function RegisterPage() {
             </div>
           </Field>
 
-          {!state.ok && state.error && (
+          {error && (
             <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-medium text-rose-700">
-              {state.error}
+              {error}
             </div>
           )}
 
-          <Button type="submit" size="lg" loading={pending} className="mt-1">
+          <Button type="submit" size="lg" loading={busy} className="mt-1">
             Create account
           </Button>
         </form>
