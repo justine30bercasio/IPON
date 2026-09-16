@@ -17,6 +17,7 @@ import {
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { AddHulogModal } from "@/components/add-hulog-modal";
+import { SignOutButton } from "@/components/sign-out-button";
 
 export interface ShellNavItem {
   href: string;
@@ -171,6 +172,9 @@ export function AppShell({
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <span className="lg:hidden">
+              <SignOutButton variant="icon" />
+            </span>
             <Link
               href="/notifications"
               className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white text-ink-soft shadow-soft transition-colors hover:text-ink"
