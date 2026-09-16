@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { resetPassword, validateNewPassword } from "@/lib/auth";
 
+const noStore = { headers: { "Cache-Control": "no-store" } };
+
 export async function POST(request: Request) {
   const form = await request.formData();
   const token = String(form.get("token") ?? "").trim();
@@ -10,17 +12,17 @@ export async function POST(request: Request) {
   if (password !== confirm) {
     return NextResponse.json(
       { ok: false, error: "Passwords don't match." },
-      { status: 400 }
+      { status: 400, ...noStore }
     );
   }
   const pwCheck = validateNewPassword(password);
   if (pwCheck) {
-    return NextResponse.json({ ok: false, error: pwCheck }, { status: 400 });
+    return NextResponse.json({ ok: false, error: pwCheck }, { status: 400, ...noStore });
   }
 
   const res = await resetPassword(token, password);
   if (!res.ok) {
-    return NextResponse.json({ ok: false, error: res.error }, { status: 400 });
+    return NextResponse.json({ ok: false, error: res.error }, { status: 400, ...noStore });
   }
-  return NextResponse.json({ ok: true, user: res.user });
+  return NextResponse.json({ ok: true, user: res.user }, noStore);
 }

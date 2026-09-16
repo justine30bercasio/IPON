@@ -26,7 +26,7 @@ export default function ForgotPasswordPage() {
     setResetBusy(true);
     setResetError("");
     try {
-      const res = await fetch("/api/auth/reset", { method: "POST", body: new FormData(e.currentTarget) });
+      const res = await fetch("/api/auth/reset", { method: "POST", cache: "no-store", body: new FormData(e.currentTarget) });
       const data = await res.json();
       if (!data.ok) {
         setResetError(data.error ?? "Reset failed. Please try again.");

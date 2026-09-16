@@ -20,7 +20,7 @@ export default function LoginPage() {
     setBusy(true);
     setError("");
     try {
-      const res = await fetch("/api/auth/login", { method: "POST", body: new FormData(e.currentTarget) });
+      const res = await fetch("/api/auth/login", { method: "POST", cache: "no-store", body: new FormData(e.currentTarget) });
       const data = await res.json();
       if (!data.ok) {
         setError(data.error ?? "Sign in failed. Please try again.");

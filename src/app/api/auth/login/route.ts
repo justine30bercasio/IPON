@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { loginUser } from "@/lib/auth";
 
+const noStore = { headers: { "Cache-Control": "no-store" } };
+
 export async function POST(request: Request) {
   const form = await request.formData();
   const emailOrUsername = String(form.get("emailOrUsername") ?? "").trim();
@@ -9,12 +11,12 @@ export async function POST(request: Request) {
   if (!emailOrUsername || !password) {
     return NextResponse.json(
       { ok: false, error: "Enter your email/username and password." },
-      { status: 400 }
+      { status: 400, ...noStore }
     );
   }
   const res = await loginUser(emailOrUsername, password, remember);
   if (!res.ok) {
-    return NextResponse.json({ ok: false, error: res.error }, { status: 401 });
+    return NextResponse.json({ ok: false, error: res.error }, { status: 401, ...noStore });
   }
-  return NextResponse.json({ ok: true, user: res.user });
+  return NextResponse.json({ ok: true, user: res.user }, noStore);
 }

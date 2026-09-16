@@ -19,7 +19,7 @@ export default function RegisterPage() {
     setBusy(true);
     setError("");
     try {
-      const res = await fetch("/api/auth/register", { method: "POST", body: new FormData(e.currentTarget) });
+      const res = await fetch("/api/auth/register", { method: "POST", cache: "no-store", body: new FormData(e.currentTarget) });
       const data = await res.json();
       if (!data.ok) {
         setError(data.error ?? "Registration failed. Please try again.");
