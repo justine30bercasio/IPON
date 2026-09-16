@@ -1,22 +1,27 @@
 import { NextResponse } from "next/server";
-import { loginUser } from "@/lib/auth";
+import { loginUser, sessionCookieHeader } from "@/lib/auth";
 
-const noStore = { headers: { "Cache-Control": "no-store" } };
+const json = (body: Record<string, unknown>, extra: HeadersInit = {}) =>
+  new NextResponse(JSON.stringify(body), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      ...extra,
+    },
+  });
 
 export async function POST(request: Request) {
   const form = await request.formData();
   const emailOrUsername = String(form.get("emailOrUsername") ?? "").trim();
   const password = String(form.get("password") ?? "");
   const remember = form.get("remember") === "on";
+
   if (!emailOrUsername || !password) {
-    return NextResponse.json(
-      { ok: false, error: "Enter your email/username and password." },
-      { status: 400, ...noStore }
-    );
+    return json({ ok: false, error: "Enter your email/username and password." });
   }
   const res = await loginUser(emailOrUsername, password, remember);
-  if (!res.ok) {
-    return NextResponse.json({ ok: false, error: res.error }, { status: 401, ...noStore });
-  }
-  return NextResponse.json({ ok: true, user: res.user }, noStore);
+  if (!res.ok) return json({ ok: false, error: res.error });
+  const cookie = await sessionCookieHeader(res.user.id, remember);
+  return json({ ok: true, user: res.user }, { "Set-Cookie": cookie });
 }

@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { destroySession } from "@/lib/auth";
+import { clearSessionCookieHeader } from "@/lib/auth";
 
-export async function GET(request: NextRequest) {
-  await destroySession();
-  const url = new URL("/login", request.nextUrl);
-  url.searchParams.set("loggedOut", "1");
-  return NextResponse.redirect(url);
+export async function POST(request: NextRequest) {
+  const redirect = NextResponse.json({ ok: true });
+  redirect.headers.set("Set-Cookie", await clearSessionCookieHeader());
+  return redirect;
+}
+
+export async function GET() {
+  return NextResponse.json({ ok: false, error: "Method not allowed" }, { status: 405 });
 }

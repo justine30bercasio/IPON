@@ -3,7 +3,6 @@
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Eye, EyeOff, User, Mail, AtSign, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
@@ -12,26 +11,41 @@ export default function RegisterPage() {
   const [showPw, setShowPw] = React.useState(false);
   const [error, setError] = React.useState("");
   const [busy, setBusy] = React.useState(false);
-  const router = useRouter();
+  const formRef = React.useRef<HTMLFormElement>(null);
 
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      const res = await fetch("/api/auth/register", { method: "POST", cache: "no-store", body: new FormData(e.currentTarget) });
-      const data = await res.json();
-      if (!data.ok) {
-        setError(data.error ?? "Registration failed. Please try again.");
-        return;
+  React.useEffect(() => {
+    const form = formRef.current;
+    if (!form) return;
+    const onSubmit = async (e: SubmitEvent) => {
+      e.preventDefault();
+      setBusy(true);
+      setError("");
+      try {
+        const res = await fetch("/api/auth/register", { method: "POST", cache: "no-store", body: new FormData(form) });
+        const data = await res.json().catch(() => null);
+        if (!data?.ok) {
+          setError(data?.error ?? "Registration failed. Please try again.");
+          return;
+        }
+        window.location.href = "/dashboard";
+      } catch {
+        setError("Something went wrong. Please try again.");
+      } finally {
+        setBusy(false);
       }
-      router.replace("/dashboard");
-    } catch {
-      setError("Something went wrong. Please try again.");
-    } finally {
-      setBusy(false);
-    }
-  }
+    };
+    form.addEventListener("submit", onSubmit);
+    return () => form.removeEventListener("submit", onSubmit);
+  }, []);
+
+  React.useEffect(() => {
+    const t = setTimeout(() => {
+      const params = new URLSearchParams(window.location.search);
+      const err = params.get("error");
+      if (err) setError(err);
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center px-5 py-10">
@@ -44,7 +58,7 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <form onSubmit={onSubmit} className="animate-fade-up flex flex-col gap-4">
+        <form ref={formRef} action="/api/auth/register" method="POST" className="animate-fade-up flex flex-col gap-4">
           <Field label="Full Name">
             <div className="relative">
               <User className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft/50" />

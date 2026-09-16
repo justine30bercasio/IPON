@@ -135,13 +135,21 @@ export function AppShell({
                 {user.role === "ADMIN" ? "Organizer" : "Member"}
               </p>
             </div>
-            <Link
-              href="/api/auth/logout"
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await fetch("/api/auth/logout", { method: "POST", cache: "no-store" });
+                } catch {
+                  /* ignore */
+                }
+                window.location.href = "/login?loggedOut=1";
+              }}
               className="flex h-9 w-9 items-center justify-center rounded-full text-ink-soft/60 transition-colors hover:bg-mist hover:text-ink"
               aria-label="Sign out"
             >
               <LogOut className="h-4 w-4" />
-            </Link>
+            </button>
           </div>
         </div>
       </aside>

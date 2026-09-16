@@ -3,7 +3,6 @@
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useActionState } from "react";
 import { Mail, KeyRound, RotateCcw } from "lucide-react";
 import { forgotPasswordAction, type ActionResult } from "@/lib/actions";
@@ -19,26 +18,41 @@ export default function ForgotPasswordPage() {
   );
   const [resetError, setResetError] = React.useState("");
   const [resetBusy, setResetBusy] = React.useState(false);
-  const router = useRouter();
+  const resetFormRef = React.useRef<HTMLFormElement>(null);
 
-  async function onReset(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setResetBusy(true);
-    setResetError("");
-    try {
-      const res = await fetch("/api/auth/reset", { method: "POST", cache: "no-store", body: new FormData(e.currentTarget) });
-      const data = await res.json();
-      if (!data.ok) {
-        setResetError(data.error ?? "Reset failed. Please try again.");
-        return;
+  React.useEffect(() => {
+    const form = resetFormRef.current;
+    if (!form) return;
+    const onSubmit = async (e: SubmitEvent) => {
+      e.preventDefault();
+      setResetBusy(true);
+      setResetError("");
+      try {
+        const res = await fetch("/api/auth/reset", { method: "POST", cache: "no-store", body: new FormData(form) });
+        const data = await res.json().catch(() => null);
+        if (!data?.ok) {
+          setResetError(data?.error ?? "Reset failed. Please try again.");
+          return;
+        }
+        window.location.href = "/dashboard";
+      } catch {
+        setResetError("Something went wrong. Please try again.");
+      } finally {
+        setResetBusy(false);
       }
-      router.replace("/dashboard");
-    } catch {
-      setResetError("Something went wrong. Please try again.");
-    } finally {
-      setResetBusy(false);
-    }
-  }
+    };
+    form.addEventListener("submit", onSubmit);
+    return () => form.removeEventListener("submit", onSubmit);
+  }, [requestState.ok]);
+
+  React.useEffect(() => {
+    const t = setTimeout(() => {
+      const params = new URLSearchParams(window.location.search);
+      const err = params.get("error");
+      if (err) setResetError(err);
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
 
   const showReset = !!requestState.ok;
   const code = requestState.ok ? requestState.message ?? "" : "";
@@ -85,7 +99,7 @@ export default function ForgotPasswordPage() {
             </Button>
           </form>
         ) : (
-          <form onSubmit={onReset} className="animate-fade-up flex flex-col gap-4">
+          <form ref={resetFormRef} action="/api/auth/reset" method="POST" className="animate-fade-up flex flex-col gap-4">
             <div className="rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-center">
               <p className="text-[11px] font-bold uppercase tracking-wider text-brand-700/70">
                 Your reset code · valid 15 minutes

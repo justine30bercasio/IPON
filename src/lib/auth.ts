@@ -50,6 +50,21 @@ export async function createSession(
   });
 }
 
+export async function sessionCookieHeader(
+  userId: string,
+  remember: boolean = true
+): Promise<string> {
+  const token = await encrypt({ userId });
+  const maxAge = remember ? 60 * 60 * 24 * 30 : 60 * 60 * 24 * 7;
+  const secure = process.env.NODE_ENV === "production";
+  const expires = new Date(Date.now() + maxAge * 1000).toUTCString();
+  return `ipon_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}; Expires=${expires}${secure ? "; Secure" : ""}`;
+}
+
+export async function clearSessionCookieHeader(): Promise<string> {
+  return "ipon_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT";
+}
+
 export async function destroySession(): Promise<void> {
   const store = await cookies();
   store.delete(COOKIE_NAME);

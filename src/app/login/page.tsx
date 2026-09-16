@@ -3,7 +3,6 @@
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Mail, Lock, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
@@ -13,31 +12,43 @@ export default function LoginPage() {
   const [showPw, setShowPw] = React.useState(false);
   const [error, setError] = React.useState("");
   const [busy, setBusy] = React.useState(false);
-  const router = useRouter();
-
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      const res = await fetch("/api/auth/login", { method: "POST", cache: "no-store", body: new FormData(e.currentTarget) });
-      const data = await res.json();
-      if (!data.ok) {
-        setError(data.error ?? "Sign in failed. Please try again.");
-        return;
-      }
-      router.replace("/dashboard");
-    } catch {
-      setError("Something went wrong. Please try again.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const formRef = React.useRef<HTMLFormElement>(null);
 
   React.useEffect(() => {
-    if (typeof window !== "undefined" && window.location.search.includes("loggedOut=1")) {
-      toast("success", "Signed out", "See you soon!");
-    }
+    const form = formRef.current;
+    if (!form) return;
+    const onSubmit = async (e: SubmitEvent) => {
+      e.preventDefault();
+      setBusy(true);
+      setError("");
+      try {
+        const res = await fetch("/api/auth/login", { method: "POST", cache: "no-store", body: new FormData(form) });
+        const data = await res.json().catch(() => null);
+        if (!data?.ok) {
+          setError(data?.error ?? "Sign in failed. Please try again.");
+          return;
+        }
+        window.location.href = "/dashboard";
+      } catch {
+        setError("Something went wrong. Please try again.");
+      } finally {
+        setBusy(false);
+      }
+    };
+    form.addEventListener("submit", onSubmit);
+    return () => form.removeEventListener("submit", onSubmit);
+  }, []);
+
+  React.useEffect(() => {
+    const t = setTimeout(() => {
+      const params = new URLSearchParams(window.location.search);
+      const err = params.get("error");
+      if (err) setError(err);
+      if (params.get("loggedOut") === "1") {
+        toast("success", "Signed out", "See you soon!");
+      }
+    }, 0);
+    return () => clearTimeout(t);
   }, []);
 
   return (
@@ -113,7 +124,7 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <form onSubmit={onSubmit} className="mt-7 flex flex-col gap-4">
+          <form ref={formRef} action="/api/auth/login" method="POST" className="mt-7 flex flex-col gap-4">
             <Field label="Email or Username">
               <div className="relative">
                 <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft/50" />
