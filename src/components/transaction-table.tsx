@@ -15,7 +15,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDialog, Modal } from "@/components/ui/modal";
 import { toast } from "@/components/ui/toast";
-import { StatusBadge, PaymentChip, statusLabel } from "@/components/transaction-card";
+import { StatusBadge, PaymentChip, statusLabel, WithdrawalChip } from "@/components/transaction-card";
 import { money, formatDate } from "@/lib/format";
 import {
   confirmTransactionAction,
@@ -202,14 +202,21 @@ export function TransactionsTable({
                     <td className="whitespace-nowrap px-5 py-3.5 font-semibold text-ink">
                       {i.collectionPeriod}
                     </td>
-                    <td className="whitespace-nowrap px-5 py-3.5 text-right text-base font-extrabold tracking-tight text-ink">
-                      {money(i.amount)}
+                    <td
+                      className={`whitespace-nowrap px-5 py-3.5 text-right text-base font-extrabold tracking-tight ${
+                        i.amount < 0 ? "text-rose-600" : "text-ink"
+                      }`}
+                    >
+                      {i.amount < 0 ? `−${money(-i.amount)}` : money(i.amount)}
                     </td>
                     <td className="px-5 py-3.5">
                       <PaymentChip method={i.paymentMethod} />
                     </td>
                     <td className="px-5 py-3.5">
-                      <StatusBadge status={i.status} />
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {i.amount < 0 && <WithdrawalChip />}
+                        <StatusBadge status={i.status} />
+                      </div>
                     </td>
                     {admin && (
                       <td className="px-5 py-3.5 text-right">
@@ -424,13 +431,20 @@ function MobileRow({
               <span className="text-[13px] font-bold text-ink">{tx.memberName}</span>
             </div>
           )}
-          <p className="text-xl font-extrabold tracking-tight text-ink">
-            {money(tx.amount)}
+          <p
+            className={`text-xl font-extrabold tracking-tight ${
+              tx.amount < 0 ? "text-rose-600" : "text-ink"
+            }`}
+          >
+            {tx.amount < 0 ? `−${money(-tx.amount)}` : money(tx.amount)}
           </p>
           <p className="text-xs font-semibold text-ink-soft">{tx.collectionPeriod}</p>
           <p className="mt-0.5 text-xs text-ink-soft/70">{formatDate(tx.transactionDate)}</p>
         </div>
-        <StatusBadge status={tx.status} />
+        <div className="flex items-center gap-1.5">
+          {tx.amount < 0 && <WithdrawalChip />}
+          <StatusBadge status={tx.status} />
+        </div>
       </div>
       <div className="mt-3 flex items-center justify-between gap-3">
         <PaymentChip method={tx.paymentMethod} />

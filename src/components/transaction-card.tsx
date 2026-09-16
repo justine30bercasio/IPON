@@ -47,6 +47,14 @@ export function StatusBadge({ status }: { status: TransactionStatus }) {
   );
 }
 
+export function WithdrawalChip() {
+  return (
+    <Badge tone="danger" dot>
+      Withdrawal
+    </Badge>
+  );
+}
+
 export function PaymentChip({ method }: { method: PaymentMethod }) {
   const meta = methodMeta[method];
   const Icon = meta.icon;
@@ -65,6 +73,7 @@ export function TransactionCard({
   method,
   status,
   note,
+  memberName,
 }: {
   amount: number;
   date: string;
@@ -72,6 +81,7 @@ export function TransactionCard({
   method: PaymentMethod;
   status: TransactionStatus;
   note?: string | null;
+  memberName?: string | null;
 }) {
   const Icon = statusIcons[status];
   const tone =
@@ -80,6 +90,7 @@ export function TransactionCard({
       : status === "PENDING"
         ? "text-amber-500"
         : "text-rose-500";
+  const isWithdraw = amount < 0;
   return (
     <div className="flex items-center gap-4 rounded-2xl border border-line/70 bg-white p-4 shadow-soft transition-all hover:shadow-lift">
       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-50">
@@ -87,12 +98,23 @@ export function TransactionCard({
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-3">
-          <p className="text-lg font-extrabold tracking-tight text-ink">
-            {money(amount)}
+          <p
+            className={`text-lg font-extrabold tracking-tight ${
+              isWithdraw ? "text-rose-600" : "text-ink"
+            }`}
+          >
+            {isWithdraw ? "−" : ""}
+            {money(Math.abs(amount))}
           </p>
-          <StatusBadge status={status} />
+          <div className="flex items-center gap-1.5">
+            {isWithdraw && <WithdrawalChip />}
+            <StatusBadge status={status} />
+          </div>
         </div>
         <p className="text-[13px] font-semibold text-ink-soft">{period}</p>
+        {memberName && (
+          <p className="text-[13px] font-bold text-ink">{memberName}</p>
+        )}
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-soft/70">
           <span>
             {new Date(date).toLocaleDateString("en-PH", {

@@ -128,6 +128,45 @@ export async function getChallengeTotals(challengeId: string) {
   return { total, count: txs.length, thisMonth };
 }
 
+export interface OrganizerOverview {
+  total: number;
+  count: number;
+  thisMonth: number;
+  members: number;
+  pending: number;
+}
+
+export async function getOrganizerOverview(userId: string): Promise<OrganizerOverview> {
+  const challenges = await prisma.challenge.findMany({
+    where: { createdById: userId },
+    include: {
+      members: { select: { userId: true } },
+      transactions: {
+        where: { status: { not: "VOIDED" } },
+        select: { amount: true, transactionDate: true },
+      },
+    },
+  });
+
+  const memberIds = new Set<string>();
+  let total = 0;
+  let count = 0;
+  let thisMonth = 0;
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  for (const c of challenges) {
+    for (const m of c.members) memberIds.add(m.userId);
+    for (const t of c.transactions) {
+      total += t.amount;
+      count += 1;
+      if (t.transactionDate >= monthStart) thisMonth += t.amount;
+    }
+  }
+  const pending = await prisma.hulogTransaction.count({
+    where: { challenge: { createdById: userId }, status: "PENDING" },
+  });
+  return { total, count, thisMonth, members: memberIds.size, pending };
+}
+
 export interface PersonalStats {
   total: number;
   thisMonth: number;

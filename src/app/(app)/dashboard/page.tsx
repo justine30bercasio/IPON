@@ -1,8 +1,13 @@
 import Link from "next/link";
-import { Coins, Wallet, CalendarDays, Layers, ArrowRight } from "lucide-react";
+import { Coins, Wallet, CalendarDays, Layers, Users, ArrowRight } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getPersonalStats, getActiveMemberOptions } from "@/lib/queries";
+import {
+  getPersonalStats,
+  getActiveMemberOptions,
+  getOrganizerOverview,
+} from "@/lib/queries";
+import type { MonthlySeriesPoint } from "@/lib/queries";
 import { greeting, money, formatDate } from "@/lib/format";
 import { PageHeader } from "@/components/layout/page-header";
 import { StatCard } from "@/components/ui/stat-card";
@@ -19,6 +24,7 @@ export default async function DashboardPage() {
 
   const stats = await getPersonalStats(user.id);
   const role = user.role;
+  const isAdmin = role === "ADMIN";
 
   const myChallenges = await prisma.challenge.findMany({
     where: {
@@ -37,21 +43,61 @@ export default async function DashboardPage() {
 
   const memberOptions = await getActiveMemberOptions(myChallenges.map((c) => c.id));
 
+  const overview = isAdmin ? await getOrganizerOverview(user.id) : null;
+
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const recent = await prisma.hulogTransaction.findMany({
-    where: {
-      member: { userId: user.id },
-      status: { not: "VOIDED" },
-      challenge: { status: { not: "ARCHIVED" } },
-    },
-    include: { challenge: { select: { name: true } } },
-    orderBy: { transactionDate: "desc" },
-    take: 5,
-  });
+  const recentItems = isAdmin
+    ? (
+        await prisma.hulogTransaction.findMany({
+          where: {
+            challenge: { createdById: user.id },
+            status: { not: "VOIDED" },
+          },
+          include: {
+            challenge: { select: { name: true } },
+            member: { include: { user: { select: { name: true } } } },
+          },
+          orderBy: { transactionDate: "desc" },
+          take: 5,
+        })
+      ).map((t) => ({
+        id: t.id,
+        amount: t.amount,
+        transactionDate: t.transactionDate,
+        collectionPeriod: t.collectionPeriod,
+        paymentMethod: t.paymentMethod,
+        status: t.status,
+        note: t.note,
+        challengeName: t.challenge.name,
+        memberName: t.member.user.name,
+      }))
+    : (
+        await prisma.hulogTransaction.findMany({
+          where: {
+            member: { userId: user.id },
+            status: { not: "VOIDED" },
+            challenge: { status: { not: "ARCHIVED" } },
+          },
+          include: { challenge: { select: { name: true } } },
+          orderBy: { transactionDate: "desc" },
+          take: 5,
+        })
+      ).map((t) => ({
+        id: t.id,
+        amount: t.amount,
+        transactionDate: t.transactionDate,
+        collectionPeriod: t.collectionPeriod,
+        paymentMethod: t.paymentMethod,
+        status: t.status,
+        note: t.note,
+        challengeName: t.challenge.name,
+        memberName: null as string | null,
+      }));
 
   const globalSeries = await getChallengeMonthlySeriesForUser(user.id, role);
+  const chartData = isAdmin ? globalSeries : stats.monthly;
 
   return (
     <div className="space-y-6">
@@ -73,34 +119,93 @@ export default async function DashboardPage() {
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-        <StatCard label="Total Hulog" value={money(stats.total)} icon={Wallet} tone="brand" hint="all time" />
-        <StatCard label="This Month" value={money(stats.thisMonth)} icon={CalendarDays} hint={monthName()} />
-        <StatCard label="Hulog" value={`${stats.count}`} icon={Layers} hint="transactions" />
-        <StatCard
-          label="Latest Hulog"
-          value={stats.latest ? money(stats.latest.amount) : "—"}
-icon={Coins}
-          hint={stats.latest ? formatDate(stats.latest.date) : "no hulog yet"}
-        />
+        {isAdmin && overview ? (
+          <>
+            <StatCard
+              label="Total Collected"
+              value={money(overview.total)}
+              icon={Wallet}
+              tone="brand"
+              hint="all time"
+            />
+            <StatCard
+              label="This Month"
+              value={money(overview.thisMonth)}
+              icon={CalendarDays}
+              hint={monthName()}
+            />
+            <StatCard
+              label="Members"
+              value={overview.members}
+              icon={Users}
+              tone="amber"
+              hint="across challenges"
+            />
+            <StatCard
+              label="Transactions"
+              value={overview.count}
+              icon={Layers}
+              hint="all time"
+            />
+          </>
+        ) : (
+          <>
+            <StatCard
+              label="Total Hulog"
+              value={money(stats.total)}
+              icon={Wallet}
+              tone="brand"
+              hint="all time"
+            />
+            <StatCard
+              label="This Month"
+              value={money(stats.thisMonth)}
+              icon={CalendarDays}
+              hint={monthName()}
+            />
+            <StatCard
+              label="Hulog"
+              value={`${stats.count}`}
+              icon={Layers}
+              hint="transactions"
+            />
+            <StatCard
+              label="Latest Hulog"
+              value={stats.latest ? money(stats.latest.amount) : "—"}
+              icon={Coins}
+              hint={stats.latest ? formatDate(stats.latest.date) : "no hulog yet"}
+            />
+          </>
+        )}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-5">
         <Card className="lg:col-span-3">
           <CardHeader
-            title="Your monthly hulog"
-            subtitle="Total recorded per month across your challenges"
+            title={isAdmin ? "Collective monthly hulog" : "Your monthly hulog"}
+            subtitle={
+              isAdmin
+                ? "Total collected per month across your challenges"
+                : "Total recorded per month across your challenges"
+            }
+            action={
+              isAdmin && overview && overview.pending > 0 ? (
+                <Link href="/hulog">
+                  <Badge tone="pending" dot>
+                    {overview.pending} to confirm
+                  </Badge>
+                </Link>
+              ) : undefined
+            }
           />
           <CardContent>
-            {stats.monthly.some((m) => m.total > 0) ? (
-              <MonthlyBarChart
-                data={stats.monthly}
-                className="h-56"
-              />
+            {chartData.some((m) => m.total !== 0) ? (
+              <MonthlyBarChart data={chartData} className="h-56" />
             ) : (
               <EmptyState
                 emoji="🪙"
                 title="No hulog yet"
-                description="Once you record your first hulog, it shows up right here."
+                description="Once a contribution is recorded, it shows up right here."
               />
             )}
           </CardContent>
@@ -167,14 +272,12 @@ icon={Coins}
         </Card>
       </div>
 
-      {role === "ADMIN" && (
-        <AdminOverview userId={user.id} series={globalSeries} />
-      )}
-
       <Card>
         <CardHeader
           title="Recent Hulog"
-          subtitle="Your latest contributions"
+          subtitle={
+            isAdmin ? "Latest transactions across your challenges" : "Your latest contributions"
+          }
           action={
             <Link
               href="/hulog"
@@ -185,23 +288,28 @@ icon={Coins}
           }
         />
         <CardContent>
-          {recent.length === 0 ? (
+          {recentItems.length === 0 ? (
             <EmptyState
               emoji="🪙"
               title="No hulog yet"
-              description="Your first contribution will appear here."
+              description={
+                isAdmin
+                  ? "No transactions have been recorded yet."
+                  : "Your first contribution will appear here."
+              }
             />
           ) : (
             <div className="grid gap-2.5 md:grid-cols-2">
-              {recent.map((tx) => (
+              {recentItems.map((tx) => (
                 <TransactionCard
                   key={tx.id}
                   amount={tx.amount}
                   date={tx.transactionDate.toISOString()}
-                  period={`${tx.collectionPeriod} · ${tx.challenge.name}`}
+                  period={`${tx.collectionPeriod} · ${tx.challengeName}`}
                   method={tx.paymentMethod}
                   status={tx.status}
                   note={tx.note}
+                  memberName={tx.memberName}
                 />
               ))}
             </div>
@@ -225,93 +333,6 @@ function strip(
     name: c.name,
     members: memberOptions[c.id] ?? [],
   }));
-}
-
-type SeriesPoint = {
-  key: string;
-  month: string;
-  total: number;
-  count: number;
-  contributors: number;
-};
-
-async function AdminOverview({
-  userId,
-  series,
-}: {
-  userId: string;
-  series: SeriesPoint[];
-}) {
-  const challenges = await prisma.challenge.findMany({
-    where: { createdById: userId },
-    include: {
-      members: true,
-      transactions: {
-        where: { status: { not: "VOIDED" } },
-        select: { amount: true, transactionDate: true, status: true },
-      },
-    },
-  });
-
-  const members = new Set<string>();
-  let total = 0;
-  let count = 0;
-  let thisMonth = 0;
-  let pendingCount = 0;
-  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-
-  for (const c of challenges) {
-    c.members.forEach((m) => members.add(m.userId));
-    for (const t of c.transactions) {
-      total += t.amount;
-      count++;
-      if (t.transactionDate >= monthStart) thisMonth += t.amount;
-    }
-  }
-  pendingCount = await prisma.hulogTransaction.count({
-    where: {
-      challenge: { createdById: userId },
-      status: "PENDING",
-    },
-  });
-
-  return (
-    <>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-        <StatCard label="Members" value={members.size} icon={Layers} hint="across challenges" tone="amber" />
-        <StatCard label="Total Collected" value={money(total)} icon={Wallet} tone="brand" />
-        <StatCard label="This Month" value={money(thisMonth)} icon={CalendarDays} />
-        <StatCard label="Transactions" value={count} icon={Wallet} />
-      </div>
-
-      <Card>
-        <CardHeader
-          title="Current Collection"
-          subtitle="Total hulog per month across your challenges"
-          action={
-            pendingCount > 0 ? (
-              <Link href="/hulog">
-                <Badge tone="pending" dot>
-                  {pendingCount} to confirm
-                </Badge>
-              </Link>
-            ) : undefined
-          }
-        />
-        <CardContent>
-          {total > 0 ? (
-            <MonthlyBarChart data={series} className="h-60" />
-          ) : (
-            <EmptyState
-              emoji="💰"
-              title="No collections yet"
-              description="Record the first hulog to start the chart."
-            />
-          )}
-        </CardContent>
-      </Card>
-    </>
-  );
 }
 
 async function getChallengeMonthlySeriesForUser(userId: string, role: string) {
@@ -350,7 +371,7 @@ async function getChallengeMonthlySeriesForUser(userId: string, role: string) {
     byMonth.set(key, bucket);
   }
 
-  const points: SeriesPoint[] = [];
+  const points: MonthlySeriesPoint[] = [];
   for (let i = 7; i >= 0; i--) {
     const d = new Date(new Date().getFullYear(), new Date().getMonth() - i, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;

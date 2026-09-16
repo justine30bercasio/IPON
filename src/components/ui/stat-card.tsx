@@ -26,7 +26,7 @@ export function StatCard({
         <div className="min-w-0">
           <p
             className={`text-[11px] font-bold uppercase tracking-wider ${
-              tone === "brand" ? "text-white/70" : "text-ink-soft/60"
+              tone === "brand" ? "text-white/85" : "text-ink-soft/60"
             }`}
           >
             {label}
@@ -58,7 +58,7 @@ export function StatCard({
               {hint && (
                 <span
                   className={`text-xs ${
-                    tone === "brand" ? "text-white/60" : "text-ink-soft/50"
+                    tone === "brand" ? "text-white/75" : "text-ink-soft/50"
                   }`}
                 >
                   {hint}

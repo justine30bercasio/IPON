@@ -332,10 +332,12 @@ export async function addHulogAction(
   formData: FormData
 ): Promise<ActionResult> {
   const user = await requireUser();
+  const kind = String(formData.get("kind") ?? "").trim() === "withdraw" ? "withdraw" : "hulog";
   const amount = quantizeAmount(formData.get("amount"));
   if (amount === null) {
     return { ok: false, error: "Enter an amount greater than zero." };
   }
+  const signedAmount = kind === "withdraw" ? -amount : amount;
 
   const challenge = await prisma.challenge.findUnique({
     where: { id: challengeId },
@@ -350,6 +352,9 @@ export async function addHulogAction(
   }
 
   const isAdmin = user.role === "ADMIN";
+  if (kind === "withdraw" && !isAdmin) {
+    return { ok: false, error: "Only organizers can record withdrawals." };
+  }
   const directMemberId = String(formData.get("memberId") ?? "").trim();
 
   // Admins may record a hulog on behalf of any member of the challenge.
@@ -377,7 +382,7 @@ export async function addHulogAction(
     data: {
       challengeId: challenge.id,
       memberId: membership.id,
-      amount,
+      amount: signedAmount,
       transactionDate: date,
       collectionPeriod: period,
       paymentMethod: parseMethod(formData.get("paymentMethod")),
@@ -394,8 +399,11 @@ export async function addHulogAction(
       challengeId: challenge.id,
       userId: user.id,
       type: "hulog",
-      message: `${user.name} added a ₱${amount.toLocaleString("en-PH")} hulog`,
-      metadata: { amount, transactionId: tx.id, status },
+      message:
+        kind === "withdraw"
+          ? `${user.name} recorded a ₱${amount.toLocaleString("en-PH")} withdrawal`
+          : `${user.name} added a ₱${amount.toLocaleString("en-PH")} hulog`,
+      metadata: { amount: signedAmount, transactionId: tx.id, status, kind },
     },
   });
 
@@ -405,8 +413,14 @@ export async function addHulogAction(
         userId: membership.userId,
         challengeId: challenge.id,
         type: "success",
-        title: `Your ₱${amount.toLocaleString("en-PH")} hulog was confirmed`,
-        body: `${user.name} recorded your hulog for ${period}.`,
+        title:
+          kind === "withdraw"
+            ? `Your ₱${amount.toLocaleString("en-PH")} withdrawal was confirmed`
+            : `Your ₱${amount.toLocaleString("en-PH")} hulog was confirmed`,
+        body:
+          kind === "withdraw"
+            ? `${user.name} recorded your withdrawal for ${period}.`
+            : `${user.name} recorded your hulog for ${period}.`,
         link: "/hulog",
       },
     });
@@ -420,7 +434,7 @@ export async function addHulogAction(
   }
 
   revalidateAll();
-  return { ok: true, message: "Hulog recorded." };
+  return { ok: true, message: kind === "withdraw" ? "Withdrawal recorded." : "Hulog recorded." };
 }
 
 export async function recordHulogForMemberAction(
@@ -431,8 +445,10 @@ export async function recordHulogForMemberAction(
 ): Promise<ActionResult> {
   const user = await requireUser();
   if (user.role !== "ADMIN") return { ok: false, error: "Admin access required." };
+  const kind = String(formData.get("kind") ?? "").trim() === "withdraw" ? "withdraw" : "hulog";
   const amount = quantizeAmount(formData.get("amount"));
   if (amount === null) return { ok: false, error: "Enter an amount greater than zero." };
+  const signedAmount = kind === "withdraw" ? -amount : amount;
 
   const challenge = await prisma.challenge.findUnique({
     where: { id: challengeId },
@@ -452,7 +468,7 @@ export async function recordHulogForMemberAction(
     data: {
       challengeId: challenge.id,
       memberId: membership.id,
-      amount,
+      amount: signedAmount,
       transactionDate: date,
       collectionPeriod: period,
       paymentMethod: parseMethod(formData.get("paymentMethod")),
@@ -470,10 +486,15 @@ export async function recordHulogForMemberAction(
       challengeId: challenge.id,
       userId: user.id,
       type: "hulog",
-      message: `${user.name} recorded a ₱${amount.toLocaleString("en-PH")} hulog${
-        memberUser && memberUser.id !== user.id ? ` for ${memberUser.name}` : ""
-      }`,
-      metadata: { amount, transactionId: tx.id },
+      message:
+        kind === "withdraw"
+          ? `${user.name} recorded a ₱${amount.toLocaleString("en-PH")} withdrawal${
+              memberUser && memberUser.id !== user.id ? ` for ${memberUser.name}` : ""
+            }`
+          : `${user.name} recorded a ₱${amount.toLocaleString("en-PH")} hulog${
+              memberUser && memberUser.id !== user.id ? ` for ${memberUser.name}` : ""
+            }`,
+      metadata: { amount: signedAmount, transactionId: tx.id, kind },
     },
   });
   if (memberUser && memberUser.id !== user.id) {
@@ -482,15 +503,21 @@ export async function recordHulogForMemberAction(
         userId: memberUser.id,
         challengeId: challenge.id,
         type: "success",
-        title: `Your ₱${amount.toLocaleString("en-PH")} hulog was confirmed`,
-        body: `${user.name} recorded your hulog for ${period}.`,
+        title:
+          kind === "withdraw"
+            ? `Your ₱${amount.toLocaleString("en-PH")} withdrawal was confirmed`
+            : `Your ₱${amount.toLocaleString("en-PH")} hulog was confirmed`,
+        body:
+          kind === "withdraw"
+            ? `${user.name} recorded your withdrawal for ${period}.`
+            : `${user.name} recorded your hulog for ${period}.`,
         link: "/hulog",
       },
     });
   }
 
   revalidateAll();
-  return { ok: true, message: "Hulog recorded." };
+  return { ok: true, message: kind === "withdraw" ? "Withdrawal recorded." : "Hulog recorded." };
 }
 
 export async function confirmTransactionAction(

@@ -578,6 +578,7 @@ function RecordHulogForMember({
   member: MemberRow | null;
   onClose: () => void;
 }) {
+  const [kind, setKind] = React.useState<"hulog" | "withdraw">("hulog");
   const [amount, setAmount] = React.useState("");
   const [date, setDate] = React.useState(() => new Date().toISOString().slice(0, 10));
   const [method, setMethod] = React.useState("CASH");
@@ -585,11 +586,13 @@ function RecordHulogForMember({
   const [error, setError] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const router = useRouter();
+  const isWithdraw = kind === "withdraw";
 
   if (!member) return null;
 
   const save = async () => {
     const fd = new FormData();
+    fd.set("kind", kind);
     fd.set("amount", amount);
     fd.set("date", date);
     fd.set("paymentMethod", method);
@@ -598,7 +601,13 @@ function RecordHulogForMember({
     const res = await recordHulogForMemberAction(challengeId, member.memberId, null, fd);
     setSaving(false);
     if (res.ok) {
-      toast("success", "Hulog recorded", `₱${parseFloat(amount).toLocaleString("en-PH")} for ${member.name}`);
+      toast(
+        "success",
+        isWithdraw ? "Withdrawal recorded" : "Hulog recorded",
+        `${isWithdraw ? "Withdrawal of ₱" : "₱"}${parseFloat(amount).toLocaleString(
+          "en-PH"
+        )} for ${member.name}`
+      );
       router.refresh();
       onClose();
     } else {
@@ -610,11 +619,33 @@ function RecordHulogForMember({
     <Modal
       open
       onClose={onClose}
-      title={`Record hulog · ${member.name}`}
-      description="Record a contribution on behalf of this member. It will be marked confirmed."
+      title={isWithdraw ? `Record withdrawal · ${member.name}` : `Record hulog · ${member.name}`}
+      description={
+        isWithdraw
+          ? "Record a payout to this member. It reduces their hulog balance and is marked confirmed."
+          : "Record a contribution on behalf of this member. It will be marked confirmed."
+      }
       size="sm"
     >
       <div className="flex flex-col gap-3.5">
+        <div className="grid grid-cols-2 gap-2">
+          {(["hulog", "withdraw"] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setKind(k)}
+              className={`rounded-xl border px-3.5 py-2.5 text-sm font-bold transition-all ${
+                kind === k
+                  ? k === "withdraw"
+                    ? "border-rose-300 bg-rose-50 text-rose-700"
+                    : "border-brand-400 bg-brand-50 text-brand-700"
+                  : "border-line bg-white text-ink-soft hover:border-brand-200"
+              }`}
+            >
+              {k === "withdraw" ? "Withdraw" : "Hulog"}
+            </button>
+          ))}
+        </div>
         <Field label="Amount">
           <div className="relative">
             <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-lg font-bold text-brand-700">₱</span>
@@ -655,7 +686,9 @@ function RecordHulogForMember({
         {error && <p className="text-xs font-medium text-rose-600">{error}</p>}
         <div className="flex justify-end gap-3 pt-1">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button onClick={save} loading={saving}>Save hulog</Button>
+          <Button onClick={save} loading={saving} variant={isWithdraw ? "danger" : "primary"}>
+            {isWithdraw ? "Save withdrawal" : "Save hulog"}
+          </Button>
         </div>
       </div>
     </Modal>

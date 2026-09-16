@@ -48,6 +48,7 @@ export function AddHulogModal({
   onDone?: () => void;
 }) {
   const router = useRouter();
+  const [kind, setKind] = React.useState<"hulog" | "withdraw">("hulog");
   const [challengeId, setChallengeId] = React.useState(
     initialChallengeId ?? challenges[0]?.id ?? ""
   );
@@ -55,6 +56,7 @@ export function AddHulogModal({
   const [amount, setAmount] = React.useState("");
   const [date, setDate] = React.useState(todayValue());
   const [method, setMethod] = React.useState("CASH");
+  const isWithdraw = kind === "withdraw";
 
   const activeChallenge = challenges.find((c) => c.id === challengeId);
   const members = activeChallenge?.members ?? [];
@@ -74,21 +76,47 @@ export function AddHulogModal({
     }
   }, [state, router, onDone]);
 
-  const canSubmit = challengeId && parseFloat(amount) > 0 && !pending;
+  const canSubmit =
+    challengeId && parseFloat(amount) > 0 && !pending && (!isWithdraw || !!memberId);
 
   return (
     <Modal
       open={open}
       onClose={onClose}
       size="md"
-      title="Add Hulog"
+      title={isWithdraw ? "Record Withdrawal" : "Add Hulog"}
       description={
-        roleLabel
-          ? `Record your contribution. Any amount counts. ${roleLabel}`
-          : "Record your contribution. Any amount counts."
+        isWithdraw
+          ? "Record money paid out to a member. It reduces their hulog balance."
+          : roleLabel
+            ? `Record your contribution. Any amount counts. ${roleLabel}`
+            : "Record your contribution. Any amount counts."
       }
     >
       <form action={formAction} className="flex flex-col gap-4">
+        <input type="hidden" name="kind" value={kind} />
+        {isAdmin && (
+          <Field label="Type" hint="Choose what you're recording.">
+            <div className="grid grid-cols-2 gap-2">
+              {(["hulog", "withdraw"] as const).map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setKind(k)}
+                  className={`rounded-xl border px-3.5 py-2.5 text-sm font-bold transition-all ${
+                    kind === k
+                      ? k === "withdraw"
+                        ? "border-rose-300 bg-rose-50 text-rose-700"
+                        : "border-brand-400 bg-brand-50 text-brand-700"
+                      : "border-line bg-white text-ink-soft hover:border-brand-200"
+                  }`}
+                >
+                  {k === "withdraw" ? "Withdraw" : "Hulog"}
+                </button>
+              ))}
+            </div>
+          </Field>
+        )}
         {challenges.length > 1 && (
           <Field label="Challenge" hint="Choose which challenge this hulog is for.">
             <Select
@@ -113,7 +141,11 @@ export function AddHulogModal({
         {isAdmin && members.length > 0 && (
           <Field
             label="Record for member"
-            hint="The person who contributed this hulog."
+            hint={
+              isWithdraw
+                ? "The member receiving this payout."
+                : "The person who contributed this hulog."
+            }
           >
             <input type="hidden" name="memberId" value={memberId} />
             <Select value={memberId} onChange={(e) => setMemberId(e.target.value)}>
@@ -192,7 +224,11 @@ export function AddHulogModal({
         <Field label="Note (optional)">
           <Textarea
             name="note"
-            placeholder="e.g. September hulog, GCash received by Justine"
+            placeholder={
+              isWithdraw
+                ? "e.g. BILLYSON withdrew his full ipon (June 2026)"
+                : "e.g. September hulog, GCash received by Justine"
+            }
             rows={2}
             className="min-h-16"
           />
@@ -205,8 +241,14 @@ export function AddHulogModal({
           <Button type="button" variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" loading={pending} disabled={!canSubmit} className="min-w-32">
-            Submit Hulog
+          <Button
+            type="submit"
+            loading={pending}
+            disabled={!canSubmit}
+            className="min-w-32"
+            variant={isWithdraw ? "danger" : "primary"}
+          >
+            {isWithdraw ? "Submit Withdrawal" : "Submit Hulog"}
           </Button>
         </div>
       </form>
