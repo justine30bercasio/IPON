@@ -13,6 +13,7 @@ import {
   KeyRound,
   Mail,
   Phone,
+  Search,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,7 @@ import { ConfirmDialog, Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea, Field } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
+import { TablePagination } from "@/components/ui/table-pagination";
 import { money, formatDate } from "@/lib/format";
 import {
   addMembersAction,
@@ -65,8 +67,25 @@ export function MembersManager({
   const [deactivating, setDeactivating] = React.useState<MemberRow | null>(null);
   const [removing, setRemoving] = React.useState<MemberRow | null>(null);
   const [busy, setBusy] = React.useState(false);
+  const [search, setSearch] = React.useState("");
+  const [memberPage, setMemberPage] = React.useState(1);
+  const MEMBER_PAGE_SIZE = 8;
 
-  const sorted = [...members].sort((a, b) => b.total - a.total);
+  const filtered = React.useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return [...members]
+      .sort((a, b) => b.total - a.total)
+      .filter((m) => !needle || `${m.name} ${m.email}`.toLowerCase().includes(needle));
+  }, [members, search]);
+  const sorted = filtered;
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / MEMBER_PAGE_SIZE));
+  const safePage = Math.min(memberPage, totalPages);
+  const pageRows = sorted.slice((safePage - 1) * MEMBER_PAGE_SIZE, safePage * MEMBER_PAGE_SIZE);
+
+  React.useEffect(() => {
+    setMemberPage(1);
+  }, [search]);
 
   const run = async (fn: () => Promise<ActionResult>, success: string) => {
     setBusy(true);
@@ -83,13 +102,22 @@ export function MembersManager({
 
   return (
     <div className="space-y-4">
-      {isAdmin && (
-        <div className="flex justify-end">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative max-w-sm flex-1">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft/40" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search members…"
+            className="h-10 w-full rounded-xl border border-line bg-white pl-9 pr-3 text-sm text-ink shadow-soft outline-none transition-all focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10"
+          />
+        </div>
+        {isAdmin && (
           <Button onClick={() => setAddOpen(true)}>
             <Plus className="h-4 w-4" /> Add members
           </Button>
-        </div>
-      )}
+        )}
+      </div>
 
       {members.length === 0 ? (
         <div className="rounded-2xl border border-line/70 bg-white shadow-soft">
@@ -115,7 +143,7 @@ export function MembersManager({
                 </tr>
               </thead>
               <tbody>
-                {sorted.map((m) => (
+                {pageRows.map((m) => (
                   <tr
                     key={m.userId}
                     className="border-b border-line/40 transition-colors last:border-0 hover:bg-brand-50/30"
@@ -170,7 +198,7 @@ export function MembersManager({
           </div>
 
           <div className="grid gap-3 md:hidden">
-            {sorted.map((m) => (
+            {pageRows.map((m) => (
               <div key={m.userId} className="rounded-2xl border border-line/70 bg-white p-4 shadow-soft">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
@@ -215,6 +243,14 @@ export function MembersManager({
               </div>
             ))}
           </div>
+
+          <TablePagination
+            page={safePage}
+            totalPages={totalPages}
+            total={sorted.length}
+            pageSize={MEMBER_PAGE_SIZE}
+            onPage={setMemberPage}
+          />
         </>
       )}
 

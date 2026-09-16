@@ -19,6 +19,7 @@ import { Input, Field, Textarea } from "@/components/ui/input";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
+import { TablePagination } from "@/components/ui/table-pagination";
 import { toast } from "@/components/ui/toast";
 
 export interface GlobalMember {
@@ -44,6 +45,8 @@ export function MembersManager({ members }: { members: GlobalMember[] }) {
   const [phone, setPhone] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [busy, setBusy] = React.useState(false);
+  const [page, setPage] = React.useState(1);
+  const PAGE_SIZE = 10;
 
   const filtered = members.filter((m) => {
     const needle = q.toLowerCase();
@@ -53,6 +56,14 @@ export function MembersManager({ members }: { members: GlobalMember[] }) {
       m.email.toLowerCase().includes(needle)
     );
   });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageRows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [q]);
 
   const saveProfile = async () => {
     if (!editing) return;
@@ -118,7 +129,7 @@ export function MembersManager({ members }: { members: GlobalMember[] }) {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((m) => (
+              {pageRows.map((m) => (
                 <tr key={m.id} className="border-b border-line/40 last:border-0 hover:bg-mist/40">
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3">
@@ -178,7 +189,7 @@ export function MembersManager({ members }: { members: GlobalMember[] }) {
         </div>
 
         <div className="flex flex-col gap-1.5 p-3 sm:hidden">
-          {filtered.map((m) => (
+          {pageRows.map((m) => (
             <div key={m.id} className="rounded-xl border border-line/60 p-3">
               <div className="flex items-center gap-3">
                 <Avatar name={m.name} size="sm" />
@@ -222,6 +233,16 @@ export function MembersManager({ members }: { members: GlobalMember[] }) {
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="px-3 pt-2">
+          <TablePagination
+            page={safePage}
+            totalPages={totalPages}
+            total={filtered.length}
+            pageSize={PAGE_SIZE}
+            onPage={setPage}
+          />
         </div>
 
         {filtered.length === 0 && (

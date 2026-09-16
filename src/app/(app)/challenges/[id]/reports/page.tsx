@@ -19,6 +19,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { ChallengeTabs } from "@/components/challenge/challenge-tabs";
 import { MonthlyBarChart } from "@/components/charts";
 import { EmptyState } from "@/components/ui/empty-state";
+import { DataTable } from "@/components/ui/data-table";
 
 export default async function ChallengeReportsPage({
   params,
@@ -143,42 +144,44 @@ export default async function ChallengeReportsPage({
               <EmptyState emoji="👥" title="No members yet" />
             )}
             {memberAggs.length > 0 && (
-              <div className="overflow-hidden rounded-xl border border-line/70">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-line/70 bg-mist/60 text-[11px] uppercase tracking-wider text-ink-soft/60">
-                        <th className="px-4 py-2.5 text-left font-bold">Member</th>
-                        <th className="px-4 py-2.5 text-right font-bold">Transactions</th>
-                        <th className="px-4 py-2.5 text-right font-bold">Last Hulog</th>
-                        <th className="px-4 py-2.5 text-right font-bold">Total</th>
+              <DataTable
+                rows={memberAggs
+                  .filter((m) => isAdmin || m.userId === user.id || challenge.visibility === "TRANSPARENT")
+                  .sort((a, b) => b.total - a.total)
+                  .map((m) => ({
+                    id: m.memberId,
+                    searchText: m.name,
+                    cells: (
+                      <tr key={m.memberId} className="border-b border-line/40 last:border-0 hover:bg-mist/40">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <Avatar name={m.name} size="sm" />
+                            <span className="truncate font-bold text-ink">{m.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium text-ink-soft">{m.count}</td>
+                        <td className="px-4 py-3 text-right text-xs font-medium text-ink-soft/70">
+                          {m.lastHulog ? formatDate(m.lastHulog) : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-right text-base font-extrabold text-brand-700">
+                          {isAdmin || challenge.visibility !== "PRIVATE" ? money(m.total) : "•••"}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {memberAggs
-                        .filter((m) => isAdmin || m.userId === user.id || challenge.visibility === "TRANSPARENT")
-                        .sort((a, b) => b.total - a.total)
-                        .map((m) => (
-                          <tr key={m.memberId} className="border-b border-line/40 last:border-0 hover:bg-mist/40">
-                            <td className="px-4 py-2.5">
-                              <div className="flex items-center gap-3">
-                                <Avatar name={m.name} size="sm" />
-                                <span className="truncate font-bold text-ink">{m.name}</span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-2.5 text-right font-medium text-ink-soft">{m.count}</td>
-                            <td className="px-4 py-2.5 text-right text-xs font-medium text-ink-soft/70">
-                              {m.lastHulog ? formatDate(m.lastHulog) : "—"}
-                            </td>
-                            <td className="px-4 py-2.5 text-right text-base font-extrabold text-brand-700">
-                              {isAdmin || challenge.visibility !== "PRIVATE" ? money(m.total) : "•••"}
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                    ),
+                  }))}
+                searchPlaceholder="Search members…"
+                pageSize={8}
+                emptyEmoji="👥"
+                emptyTitle="No members yet"
+                head={
+                  <tr className="border-b border-line/70 bg-mist/60 text-[11px] uppercase tracking-wider text-ink-soft/60">
+                    <th className="px-4 py-3 text-left font-bold">Member</th>
+                    <th className="px-4 py-3 text-right font-bold">Transactions</th>
+                    <th className="px-4 py-3 text-right font-bold">Last Hulog</th>
+                    <th className="px-4 py-3 text-right font-bold">Total</th>
+                  </tr>
+                }
+              />
             )}
           </CardContent>
         </Card>
@@ -193,28 +196,32 @@ export default async function ChallengeReportsPage({
               monthSorted.length === 0 ? (
                 <EmptyState emoji="📅" title="No periods yet" />
               ) : (
-                <div className="overflow-hidden rounded-xl border border-line/70">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-line/70 bg-mist/60 text-[11px] uppercase tracking-wider text-ink-soft/60">
-                        <th className="px-4 py-2.5 text-left font-bold">Month</th>
-                        <th className="px-4 py-2.5 text-right font-bold">Hulog</th>
-                        <th className="px-4 py-2.5 text-right font-bold">Collected</th>
-                        <th className="px-4 py-2.5 text-right font-bold">Contributors</th>
+                <DataTable
+                  rows={monthSorted.map(([period, b]) => ({
+                    id: period,
+                    searchText: period,
+                    cells: (
+                      <tr key={period} className="border-b border-line/40 last:border-0 hover:bg-mist/40">
+                        <td className="px-4 py-3 font-bold text-ink">{period}</td>
+                        <td className="px-4 py-3 text-right font-medium text-ink-soft">{b.count}</td>
+                        <td className="px-4 py-3 text-right font-extrabold text-brand-700">{money(b.total)}</td>
+                        <td className="px-4 py-3 text-right font-medium text-ink-soft">{b.contributors.size}</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {monthSorted.map(([period, b]) => (
-                        <tr key={period} className="border-b border-line/40 last:border-0">
-                          <td className="px-4 py-2.5 font-bold text-ink">{period}</td>
-                          <td className="px-4 py-2.5 text-right font-medium text-ink-soft">{b.count}</td>
-                          <td className="px-4 py-2.5 text-right font-extrabold text-brand-700">{money(b.total)}</td>
-                          <td className="px-4 py-2.5 text-right font-medium text-ink-soft">{b.contributors.size}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    ),
+                  }))}
+                  searchPlaceholder="Search months…"
+                  pageSize={8}
+                  emptyEmoji="📅"
+                  emptyTitle="No periods yet"
+                  head={
+                    <tr className="border-b border-line/70 bg-mist/60 text-[11px] uppercase tracking-wider text-ink-soft/60">
+                      <th className="px-4 py-3 text-left font-bold">Month</th>
+                      <th className="px-4 py-3 text-right font-bold">Hulog</th>
+                      <th className="px-4 py-3 text-right font-bold">Collected</th>
+                      <th className="px-4 py-3 text-right font-bold">Contributors</th>
+                    </tr>
+                  }
+                />
               )
             ) : (
               <EmptyState emoji="🔒" title="Totals are private" description="The organizer keeps amounts private in this challenge." />

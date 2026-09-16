@@ -15,6 +15,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDialog, Modal } from "@/components/ui/modal";
 import { toast } from "@/components/ui/toast";
+import { TablePagination } from "@/components/ui/table-pagination";
 import { StatusBadge, PaymentChip, statusLabel, WithdrawalChip } from "@/components/transaction-card";
 import { money, formatDate } from "@/lib/format";
 import {
@@ -51,6 +52,7 @@ export function TransactionsTable({
   const [month, setMonth] = React.useState("");
   const [method, setMethod] = React.useState("");
   const [status, setStatus] = React.useState("");
+  const [page, setPage] = React.useState(1);
   const [target, setTarget] = React.useState<TxView | null>(null);
   const [confirm, setConfirm] = React.useState(false);
   const [voiding, setVoiding] = React.useState(false);
@@ -76,6 +78,15 @@ export function TransactionsTable({
       return true;
     });
   }, [items, q, month, method, status]);
+
+  const PAGE_SIZE = 10;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paged = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [q, month, method, status]);
 
   const clearFilters =
     q || month || method || status;
@@ -186,7 +197,7 @@ export function TransactionsTable({
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((i) => (
+                {paged.map((i) => (
                   <tr key={i.id} className="border-b border-line/40 transition-colors last:border-0 hover:bg-brand-50/30">
                     {showMember && (
                       <td className="px-5 py-3.5">
@@ -241,7 +252,7 @@ export function TransactionsTable({
           </div>
 
           <div className="grid gap-3 md:hidden">
-            {filtered.map((i) => (
+            {paged.map((i) => (
               <MobileRow
                 key={i.id}
                 tx={i}
@@ -259,6 +270,14 @@ export function TransactionsTable({
               />
             ))}
           </div>
+
+          <TablePagination
+            page={safePage}
+            totalPages={totalPages}
+            total={filtered.length}
+            pageSize={PAGE_SIZE}
+            onPage={setPage}
+          />
         </>
       )}
 
