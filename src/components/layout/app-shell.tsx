@@ -221,7 +221,7 @@ export function AppShell({
 
 function PiggyLogo() {
   return (
-    <Image src="/logo.png" alt="IPON" width={1254} height={1254} className="h-9 w-9 rounded-xl bg-white object-contain shadow-glow" />
+    <Image src="/logo.png" alt="IPON" width={500} height={500} className="h-12 w-12 rounded-xl bg-white object-contain shadow-glow" />
   );
 }
 

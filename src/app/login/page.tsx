@@ -29,8 +29,8 @@ export default function LoginPage() {
         <div className="absolute -bottom-32 -left-20 h-96 w-96 rounded-full bg-emerald-900/20 blur-3xl" />
 
         <div className="relative flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-white/15 p-1.5 ring-1 ring-white/20">
-            <Image src="/logo.png" alt="IPON" width={1254} height={1254} className="h-full w-full object-contain" priority />
+          <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-white/15 p-2 ring-1 ring-white/20">
+            <Image src="/logo.png" alt="IPON" width={500} height={500} className="h-full w-full object-contain" priority />
           </div>
           <span className="text-2xl font-extrabold tracking-tight text-white">IPON</span>
         </div>
@@ -38,8 +38,8 @@ export default function LoginPage() {
         <div className="relative">
           <div className="animate-pop flex justify-center">
             <div className="relative">
-              <div className="flex h-48 w-48 items-center justify-center rounded-full bg-white/10 p-8 ring-1 ring-white/20 backdrop-blur-sm">
-<Image src="/logo.png" alt="IPON" width={1254} height={1254} className="h-full w-full object-contain" priority />
+              <div className="flex h-64 w-64 items-center justify-center rounded-full bg-white/10 p-10 ring-1 ring-white/20 backdrop-blur-sm">
+<Image src="/logo.png" alt="IPON" width={500} height={500} className="h-full w-full object-contain" priority />
               </div>
               <span className="absolute -right-6 top-4 animate-pop text-4xl">🪙</span>
               <span className="absolute -left-4 top-16 animate-fade-up text-3xl" style={{ animationDelay: "0.2s" }}>
@@ -81,7 +81,7 @@ export default function LoginPage() {
       <div className="flex flex-col items-center justify-center px-5 py-10 sm:px-10">
         <div className="w-full max-w-sm">
           <div className="mb-8 flex flex-col items-center gap-3 text-center lg:hidden">
-            <Image src="/logo.png" alt="IPON" width={1254} height={1254} className="h-14 w-14 rounded-2xl bg-white object-contain shadow-glow" />
+            <Image src="/logo.png" alt="IPON" width={500} height={500} className="h-20 w-20 rounded-2xl bg-white object-contain shadow-glow" />
             <div>
               <p className="text-xl font-extrabold tracking-tight text-ink">IPON</p>
               <p className="text-sm text-ink-soft/80">Small hulog. Big progress.</p>

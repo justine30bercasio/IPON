@@ -25,7 +25,7 @@ export default function ForgotPasswordPage() {
     <div className="flex min-h-dvh flex-col items-center justify-center px-5 py-10">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
-          <Image src="/logo.png" alt="IPON" width={1254} height={1254} className="h-14 w-14 rounded-2xl bg-white object-contain shadow-glow" />
+          <Image src="/logo.png" alt="IPON" width={500} height={500} className="h-20 w-20 rounded-2xl bg-white object-contain shadow-glow" />
           <div>
             <p className="text-xl font-extrabold tracking-tight text-ink">
               {showReset ? "Enter your reset code" : "Reset your password"}
