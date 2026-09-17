@@ -14,10 +14,13 @@ export default async function ChallengesPage() {
   if (!user) return null;
 
   const challenges = await prisma.challenge.findMany({
-    where: {
-      OR: [{ members: { some: { userId: user.id } } }, { createdById: user.id }],
-      status: { not: "ARCHIVED" },
-    },
+    where:
+      user.role === "ADMIN"
+        ? { status: { not: "ARCHIVED" } }
+        : {
+            OR: [{ members: { some: { userId: user.id } } }, { createdById: user.id }],
+            status: { not: "ARCHIVED" },
+          },
     include: {
       members: { where: { status: "ACTIVE" } },
       transactions: {

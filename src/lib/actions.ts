@@ -1002,8 +1002,15 @@ export async function deleteUserAction(userId: string): Promise<ActionResult> {
   const target = await prisma.user.findUnique({ where: { id: userId } });
   if (!target) return { ok: false, error: "User not found." };
 
+  const createdCount = await prisma.challenge.count({ where: { createdById: userId } });
+  if (createdCount > 0) {
+    return {
+      ok: false,
+      error: `${target.name} created ${createdCount} challenge${createdCount === 1 ? "" : "s"}. Open that challenge's Settings to delete it first (it contains shared savings data).`,
+    };
+  }
+
   await prisma.$transaction([
-    prisma.challenge.deleteMany({ where: { createdById: userId } }),
     prisma.challengeMember.deleteMany({ where: { userId } }),
     prisma.notification.deleteMany({ where: { userId } }),
     prisma.activityLog.deleteMany({ where: { userId } }),
@@ -1023,6 +1030,8 @@ async function getOrCreateChallengeForAdmin(
     include: { members: { where: { userId, isAdmin: true } } },
   });
   if (!challenge) return null;
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+  if (user?.role === "ADMIN") return challenge;
   if (challenge.createdById !== userId && challenge.members.length === 0) return null;
   return challenge;
 }

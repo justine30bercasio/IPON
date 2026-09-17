@@ -11,12 +11,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const challenges = await prisma.challenge.findMany({
     where: {
       OR: [
+        { createdById: user.id },
         {
           members: {
             some: { userId: user.id, status: "ACTIVE" },
           },
         },
-        { createdById: user.id },
+        ...(user.role === "ADMIN"
+          ? [{ status: { not: "ARCHIVED" as const } }]
+          : []),
       ],
       status: { not: "ARCHIVED" },
     },

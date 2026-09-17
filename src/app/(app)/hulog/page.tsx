@@ -15,16 +15,18 @@ export default async function HulogHistoryPage() {
   const isAdmin = user.role === "ADMIN";
 
   const stats = isAdmin
-    ? await getOrganizerOverview(user.id)
+    ? await getOrganizerOverview()
     : await getPersonalStats(user.id);
 
   const challenges = await prisma.challenge.findMany({
-    where: {
-      OR: [
-        { createdById: user.id },
-        { members: { some: { userId: user.id } } },
-      ],
-    },
+    where: isAdmin
+      ? { status: { not: "ARCHIVED" } }
+      : {
+          OR: [
+            { createdById: user.id },
+            { members: { some: { userId: user.id } } },
+          ],
+        },
     include: {
       schedules: true,
       members: { where: { userId: user.id }, select: { status: true, isAdmin: true } },
@@ -43,7 +45,7 @@ export default async function HulogHistoryPage() {
 
   const txs = await prisma.hulogTransaction.findMany({
     where: isAdmin
-      ? { challenge: { createdById: user.id }, status: { not: "VOIDED" } }
+      ? { challenge: { status: { not: "ARCHIVED" } }, status: { not: "VOIDED" } }
       : { member: { userId: user.id }, status: { not: "VOIDED" } },
     include: {
       challenge: { select: { id: true, name: true } },

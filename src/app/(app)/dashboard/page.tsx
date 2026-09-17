@@ -27,10 +27,12 @@ export default async function DashboardPage() {
   const isAdmin = role === "ADMIN";
 
   const myChallenges = await prisma.challenge.findMany({
-    where: {
-      OR: [{ members: { some: { userId: user.id, status: "ACTIVE" } } }, { createdById: user.id }],
-      status: "ACTIVE",
-    },
+    where: isAdmin
+      ? { status: "ACTIVE" }
+      : {
+          OR: [{ members: { some: { userId: user.id, status: "ACTIVE" } } }, { createdById: user.id }],
+          status: "ACTIVE",
+        },
     include: {
       members: { where: { userId: user.id } },
       transactions: {
@@ -43,7 +45,7 @@ export default async function DashboardPage() {
 
   const memberOptions = await getActiveMemberOptions(myChallenges.map((c) => c.id));
 
-  const overview = isAdmin ? await getOrganizerOverview(user.id) : null;
+  const overview = isAdmin ? await getOrganizerOverview() : null;
 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -52,7 +54,7 @@ export default async function DashboardPage() {
     ? (
         await prisma.hulogTransaction.findMany({
           where: {
-            challenge: { createdById: user.id },
+            challenge: { status: { not: "ARCHIVED" } },
             status: { not: "VOIDED" },
           },
           include: {
@@ -339,7 +341,7 @@ async function getChallengeMonthlySeriesForUser(userId: string, role: string) {
   const challenges = await prisma.challenge.findMany({
     where:
       role === "ADMIN"
-        ? { createdById: userId }
+        ? { status: { not: "ARCHIVED" } }
         : { members: { some: { userId, status: "ACTIVE" } } },
     select: { id: true },
   });
