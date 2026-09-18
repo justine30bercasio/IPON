@@ -61,7 +61,7 @@ export default async function ChallengePage({
     ? memberAggs.find((m) => m.userId === user.id)
     : undefined;
 
-  const ranked = [...activeMembers].sort((a, b) => b.total - a.total);
+  const ranked = [...memberAggs].sort((a, b) => b.total - a.total);
 
   const recentTx = await (async () => {
     const { prisma } = await import("@/lib/prisma");
@@ -312,7 +312,7 @@ function LeaderboardList({
                 </tr>
               </thead>
               <tbody>
-                {ranked.slice(0, 8).map((m, i) => (
+                {ranked.map((m, i) => (
                   <tr
                     key={m.id}
                     className={`border-b border-line/40 last:border-0 ${
