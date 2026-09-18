@@ -13,6 +13,8 @@ import {
   UserX,
   UserCheck,
   Trash2,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import {
   updateMemberProfileAction,
@@ -60,6 +62,7 @@ export function MembersManager({
   const [email, setEmail] = React.useState("");
   const [phone, setPhone] = React.useState("");
   const [password, setPassword] = React.useState("");
+  const [showPw, setShowPw] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [page, setPage] = React.useState(1);
   const PAGE_SIZE = 10;
@@ -417,12 +420,23 @@ export function MembersManager({
             Set a new password for <span className="font-bold text-ink">{resetting?.name}</span>.
           </p>
           <Field label="New Password">
-            <Input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 6 characters"
-            />
+            <div className="relative">
+              <Input
+                type={showPw ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="At least 6 characters"
+                className="pr-11"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPw((s) => !s)}
+                className="absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-ink-soft/60 hover:bg-mist hover:text-ink"
+                aria-label={showPw ? "Hide password" : "Show password"}
+              >
+                {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
           </Field>
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setResetting(null)}>Cancel</Button>

@@ -8,6 +8,8 @@ import {
   KeyRound,
   ShieldCheck,
   Camera,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import {
   updateProfileAction,
@@ -32,6 +34,9 @@ export function ProfileForms({ user }: {
 
   const [profileState, profileAction, profilePending] = useActionState(updateProfileAction, initial);
   const [pwState, pwAction, pwPending] = useActionState(changePasswordAction, initial);
+  const [showCurrent, setShowCurrent] = React.useState(false);
+  const [showNew, setShowNew] = React.useState(false);
+  const [showConfirm, setShowConfirm] = React.useState(false);
 
   React.useEffect(() => {
     if (profileState.ok) {
@@ -110,14 +115,44 @@ export function ProfileForms({ user }: {
           <CardContent>
             <form action={pwAction} className="flex flex-col gap-4">
               <Field label="Current Password">
-                <Input name="currentPassword" type="password" placeholder="••••••••" />
+                <div className="relative">
+                  <Input name="currentPassword" type={showCurrent ? "text" : "password"} placeholder="••••••••" className="pr-11" />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrent((s) => !s)}
+                    className="absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-ink-soft/60 hover:bg-mist hover:text-ink"
+                    aria-label={showCurrent ? "Hide password" : "Show password"}
+                  >
+                    {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </Field>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="New Password" hint="At least 8 characters with letters & numbers.">
-                  <Input name="newPassword" type="password" placeholder="New password" />
+                  <div className="relative">
+                    <Input name="newPassword" type={showNew ? "text" : "password"} placeholder="New password" className="pr-11" />
+                    <button
+                      type="button"
+                      onClick={() => setShowNew((s) => !s)}
+                      className="absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-ink-soft/60 hover:bg-mist hover:text-ink"
+                      aria-label={showNew ? "Hide password" : "Show password"}
+                    >
+                      {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </Field>
                 <Field label="Confirm New Password">
-                  <Input name="confirmPassword" type="password" placeholder="Repeat it" />
+                  <div className="relative">
+                    <Input name="confirmPassword" type={showConfirm ? "text" : "password"} placeholder="Repeat it" className="pr-11" />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirm((s) => !s)}
+                      className="absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-ink-soft/60 hover:bg-mist hover:text-ink"
+                      aria-label={showConfirm ? "Hide password" : "Show password"}
+                    >
+                      {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </Field>
               </div>
               {!pwState.ok && pwState.error && (

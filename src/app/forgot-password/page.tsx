@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState } from "react";
-import { Mail, KeyRound, RotateCcw } from "lucide-react";
+import { Mail, KeyRound, RotateCcw, Eye, EyeOff } from "lucide-react";
 import { forgotPasswordAction, type ActionResult } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
@@ -19,6 +19,8 @@ export default function ForgotPasswordPage() {
   );
   const [resetError, setResetError] = React.useState("");
   const [resetBusy, setResetBusy] = React.useState(false);
+  const [showPw, setShowPw] = React.useState(false);
+  const [showConfirm, setShowConfirm] = React.useState(false);
   const resetFormRef = React.useRef<HTMLFormElement>(null);
   const router = useRouter();
 
@@ -130,10 +132,30 @@ export default function ForgotPasswordPage() {
               </div>
             </Field>
             <Field label="New password" hint="At least 6 characters.">
-              <Input name="password" type="password" placeholder="••••••••" />
+              <div className="relative">
+                <Input name="password" type={showPw ? "text" : "password"} placeholder="••••••••" className="pr-11" />
+                <button
+                  type="button"
+                  onClick={() => setShowPw((s) => !s)}
+                  className="absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-ink-soft/60 hover:bg-mist hover:text-ink"
+                  aria-label={showPw ? "Hide password" : "Show password"}
+                >
+                  {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </Field>
             <Field label="Confirm new password">
-              <Input name="confirm" type="password" placeholder="••••••••" />
+              <div className="relative">
+                <Input name="confirm" type={showConfirm ? "text" : "password"} placeholder="••••••••" className="pr-11" />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm((s) => !s)}
+                  className="absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-ink-soft/60 hover:bg-mist hover:text-ink"
+                  aria-label={showConfirm ? "Hide password" : "Show password"}
+                >
+                  {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </Field>
 
             {resetError && (

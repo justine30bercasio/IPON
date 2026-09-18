@@ -14,6 +14,8 @@ import {
   Mail,
   Phone,
   Search,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -556,6 +558,7 @@ function ResetPasswordModal({
   onClose: () => void;
 }) {
   const [password, setPassword] = React.useState("");
+  const [showPw, setShowPw] = React.useState(false);
   const [error, setError] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const router = useRouter();
@@ -587,12 +590,23 @@ function ResetPasswordModal({
     >
       <div className="flex flex-col gap-3.5">
         <Field label="New password" hint="At least 6 characters. Share it with the member.">
-          <Input
-            type="text"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="temporary-password"
-          />
+          <div className="relative">
+            <Input
+              type={showPw ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="temporary-password"
+              className="pr-11"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPw((s) => !s)}
+              className="absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-ink-soft/60 hover:bg-mist hover:text-ink"
+              aria-label={showPw ? "Hide password" : "Show password"}
+            >
+              {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
         </Field>
         {error && <p className="text-xs font-medium text-rose-600">{error}</p>}
         <div className="flex justify-end gap-3 pt-1">
