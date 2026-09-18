@@ -41,11 +41,13 @@ const mobileNav: ShellNavItem[] = [
 
 export function AppShell({
   user,
+  orgName,
   challenges,
   unread,
   children,
 }: {
   user: { id: string; name: string; role: string; email?: string };
+  orgName: string;
   challenges: {
     id: string;
     name: string;
@@ -59,12 +61,19 @@ export function AppShell({
   const router = useRouter();
   const [hulogOpen, setHulogOpen] = React.useState(false);
 
-  const nav = user.role === "ADMIN" ? deskNav : deskNav;
+  const isAdmin = user.role === "ADMIN";
+  const isSuperAdmin = user.role === "SUPER_ADMIN";
+  const nav = deskNav;
   const mobNav = mobileNav;
-  const extranav: ShellNavItem[] =
-    user.role === "ADMIN"
-      ? [{ href: "/members", label: "Members", icon: Users }]
-      : [];
+  const extranav: ShellNavItem[] = [
+    ...(isAdmin ? [{ href: "/members", label: "Members", icon: Users }] : []),
+    ...(isSuperAdmin
+      ? [
+          { href: "/admin", label: "Super Admin", icon: Users },
+          { href: "/members", label: "Members", icon: Users },
+        ]
+      : []),
+  ];
 
   const isActive = (href: string) =>
     href === "/dashboard"
@@ -76,7 +85,14 @@ export function AppShell({
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-line/70 bg-white lg:flex">
         <div className="flex h-16 items-center gap-2.5 px-6">
           <PiggyLogo />
-          <span className="text-xl font-extrabold tracking-tight text-ink">IPON</span>
+          <div className="min-w-0">
+            <span className="block text-xl font-extrabold tracking-tight text-ink">IPON</span>
+            {orgName && (
+              <p className="-mt-0.5 truncate text-[10px] font-bold uppercase tracking-wider text-brand-600">
+                {orgName}
+              </p>
+            )}
+          </div>
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4 no-scrollbar">
@@ -114,7 +130,7 @@ export function AppShell({
             )}
           </div>
 
-          {user.role === "ADMIN" && (
+          {extranav.length > 0 && (
             <>
               <div className="px-3 pb-1 pt-6 text-[11px] font-bold uppercase tracking-wider text-ink-soft/40">
                 Administration
@@ -134,7 +150,11 @@ export function AppShell({
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold text-ink">{user.name}</p>
               <p className="text-xs capitalize text-ink-soft/70">
-                {user.role === "ADMIN" ? "Administrator" : "Member"}
+                {user.role === "SUPER_ADMIN"
+                  ? "Super Admin"
+                  : user.role === "ADMIN"
+                    ? "Administrator"
+                    : "Member"}
               </p>
             </div>
             <button
@@ -228,7 +248,7 @@ export function AppShell({
         open={hulogOpen}
         onClose={() => setHulogOpen(false)}
         challenges={challenges}
-        isAdmin={user.role === "ADMIN"}
+        isAdmin={user.role === "ADMIN" || user.role === "SUPER_ADMIN"}
         onDone={() => setHulogOpen(false)}
       />
     </div>

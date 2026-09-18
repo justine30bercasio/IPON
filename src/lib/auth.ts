@@ -1,4 +1,4 @@
-import { SignJWT, jwtVerify } from "jose";
+﻿import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
@@ -15,8 +15,59 @@ const secret = new TextEncoder().encode(devSecret);
 
 export type SessionUser = Pick<
   User,
-  "id" | "email" | "username" | "name" | "role" | "isActive"
+  "id" | "email" | "username" | "name" | "role" | "isActive" | "orgId"
 >;
+
+export const isOrgAdmin = (u: { role: string }): boolean =>
+  u.role === "ADMIN" || u.role === "SUPER_ADMIN";
+
+const superAdminEmail = process.env.SUPER_ADMIN_EMAIL?.trim().toLowerCase();
+
+export function shouldBeSuperAdmin(u: { email: string }): boolean {
+  return !!superAdminEmail && u.email.toLowerCase() === superAdminEmail;
+}
+
+interface SessionUserSource {
+  id: string;
+  email: string;
+  username: string;
+  name: string;
+  role: string;
+  isActive: boolean;
+  orgId: string;
+}
+
+export function toSessionUser(u: SessionUserSource): SessionUser {
+  const role = shouldBeSuperAdmin(u) ? "SUPER_ADMIN" : u.role;
+  return {
+    id: u.id,
+    email: u.email,
+    username: u.username,
+    name: u.name,
+    role: role as SessionUser["role"],
+    isActive: u.isActive,
+    orgId: u.orgId,
+  };
+}
+
+export async function getDefaultOrgId(): Promise<string> {
+  const slug = process.env.DEFAULT_ORG_SLUG ?? "icdec";
+  let org = await prisma.organization.findUnique({ where: { slug } });
+  if (!org) {
+    org = await prisma.organization.create({
+      data: { name: process.env.DEFAULT_ORG_NAME ?? "ICDeC", slug },
+    });
+  }
+  return org.id;
+}
+
+export async function ensureRole(
+  user: { id: string; email: string; role: string }
+): Promise<void> {
+  if (shouldBeSuperAdmin(user) && user.role !== "SUPER_ADMIN") {
+    await prisma.user.update({ where: { id: user.id }, data: { role: "SUPER_ADMIN" } });
+  }
+}
 
 export async function encrypt(payload: Record<string, unknown>): Promise<string> {
   return new SignJWT(payload)
@@ -86,9 +137,11 @@ export async function getSession(): Promise<SessionUser | null> {
       name: true,
       role: true,
       isActive: true,
+      orgId: true,
     },
   });
   if (!user || !user.isActive) return null;
+  if (shouldBeSuperAdmin(user)) user.role = "SUPER_ADMIN";
   return user;
 }
 
@@ -100,7 +153,7 @@ export async function requireUser(): Promise<SessionUser> {
 
 export async function requireAdmin(): Promise<SessionUser> {
   const user = await requireUser();
-  if (user.role !== "ADMIN") throw new AuthError("Admin access required");
+  if (!isOrgAdmin(user)) throw new AuthError("Admin access required");
   return user;
 }
 
@@ -150,11 +203,9 @@ export async function loginUser(
   if (!user.isActive) return { ok: false, error: "This account has been deactivated." };
   const valid = await verifyPassword(password, user.passwordHash);
   if (!valid) return { ok: false, error: "Invalid email/username or password." };
+  await ensureRole(user);
   await createSession(user.id, remember);
-  return {
-    ok: true,
-    user: { id: user.id, email: user.email, username: user.username, name: user.name, role: user.role, isActive: user.isActive },
-  };
+  return { ok: true, user: toSessionUser(user) };
 }
 
 export async function registerUser(data: {
@@ -183,13 +234,12 @@ export async function registerUser(data: {
         email,
         username,
         passwordHash,
+        orgId: await getDefaultOrgId(),
       },
     });
+    await ensureRole(user);
     await createSession(user.id);
-    return {
-      ok: true,
-      user: { id: user.id, email: user.email, username: user.username, name: user.name, role: user.role, isActive: user.isActive },
-    };
+    return { ok: true, user: toSessionUser(user) };
   } catch (err) {
     if (isPrismaUniqueError(err)) {
       return { ok: false, error: "An account with that email or username already exists." };
@@ -241,9 +291,7 @@ export async function resetPassword(token: string, newPassword: string): Promise
   await destroySession();
   const user = await prisma.user.findUnique({ where: { id: reset.userId } });
   if (!user) return { ok: false, error: "User not found." };
+  await ensureRole(user);
   await createSession(user.id);
-  return {
-    ok: true,
-    user: { id: user.id, email: user.email, username: user.username, name: user.name, role: user.role, isActive: user.isActive },
-  };
+  return { ok: true, user: toSessionUser(user) };
 }

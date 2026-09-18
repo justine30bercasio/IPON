@@ -31,13 +31,22 @@ export async function getChallengeContext(
     include: { schedules: true },
   });
   if (!challenge) return null;
+  if (
+    user.role !== "SUPER_ADMIN" &&
+    (!user.orgId || challenge.orgId !== user.orgId)
+  ) {
+    return null;
+  }
 
   const membership = await prisma.challengeMember.findUnique({
     where: { challengeId_userId: { challengeId, userId: user.id } },
   });
 
   const isAdmin =
-    user.role === "ADMIN" || challenge.createdById === user.id || (membership?.isAdmin ?? false);
+    user.role === "ADMIN" ||
+    user.role === "SUPER_ADMIN" ||
+    challenge.createdById === user.id ||
+    (membership?.isAdmin ?? false);
 
   return {
     challenge: {
@@ -56,13 +65,13 @@ export async function getChallengeContext(
 }
 
 export function canSeeTotals(role: string, visibility: string): boolean {
-  return role === "ADMIN" || visibility === "GROUP_TOTALS" || visibility === "TRANSPARENT";
+  return role === "ADMIN" || role === "SUPER_ADMIN" || visibility === "GROUP_TOTALS" || visibility === "TRANSPARENT";
 }
 
 export function canSeeMemberAmounts(role: string, visibility: string): boolean {
-  return role === "ADMIN" || visibility === "TRANSPARENT";
+  return role === "ADMIN" || role === "SUPER_ADMIN" || visibility === "TRANSPARENT";
 }
 
 export function canSeeLeaderboard(role: string, visibility: string, leaderboardEnabled: boolean): boolean {
-  return role === "ADMIN" || (leaderboardEnabled && visibility !== "PRIVATE");
+  return role === "ADMIN" || role === "SUPER_ADMIN" || (leaderboardEnabled && visibility !== "PRIVATE");
 }

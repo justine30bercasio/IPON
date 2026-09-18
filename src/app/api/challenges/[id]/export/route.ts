@@ -17,6 +17,9 @@ export async function GET(
 
   const challenge = await prisma.challenge.findUnique({ where: { id: challengeId } });
   if (!challenge) return new Response("Not found", { status: 404 });
+  if (user.role !== "SUPER_ADMIN" && challenge.orgId !== user.orgId) {
+    return new Response("Forbidden", { status: 403 });
+  }
   const isAdmin = await isAdminOf(user, challengeId);
   if (!isAdmin) return new Response("Forbidden", { status: 403 });
 
@@ -215,7 +218,7 @@ function escapeHtml(s: string): string {
 }
 
 async function isAdminOf(user: { id: string; role: string }, challengeId: string): Promise<boolean> {
-  if (user.role === "ADMIN") return true;
+  if (user.role === "ADMIN" || user.role === "SUPER_ADMIN") return true;
   const c = await prisma.challenge.findUnique({
     where: { id: challengeId },
     include: { members: { where: { userId: user.id, isAdmin: true } } },

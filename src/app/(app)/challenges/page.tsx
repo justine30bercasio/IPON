@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Plus, Users, Wallet, CalendarDays, ArrowRight, Coins } from "lucide-react";
-import { getSession } from "@/lib/auth";
+import { getSession, isOrgAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { money } from "@/lib/format";
 import { PageHeader } from "@/components/layout/page-header";
@@ -13,14 +13,15 @@ export default async function ChallengesPage() {
   const user = await getSession();
   if (!user) return null;
 
+  const admin = isOrgAdmin(user);
   const challenges = await prisma.challenge.findMany({
-    where:
-      user.role === "ADMIN"
-        ? { status: { not: "ARCHIVED" } }
-        : {
-            OR: [{ members: { some: { userId: user.id } } }, { createdById: user.id }],
-            status: { not: "ARCHIVED" },
-          },
+    where: admin
+      ? { orgId: user.orgId, status: { not: "ARCHIVED" } }
+      : {
+          orgId: user.orgId,
+          OR: [{ members: { some: { userId: user.id } } }, { createdById: user.id }],
+          status: { not: "ARCHIVED" },
+        },
     include: {
       members: { where: { status: "ACTIVE" } },
       transactions: {
@@ -43,7 +44,7 @@ export default async function ChallengesPage() {
         title="Challenges"
         subtitle="Every savings pot you're saving into."
         actions={
-          user.role === "ADMIN" ? (
+          admin ? (
             <Link
               href="/challenges/new"
               className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-brand-600 px-5 text-sm font-semibold text-white shadow-glow transition-colors hover:bg-brand-700"
@@ -61,11 +62,11 @@ export default async function ChallengesPage() {
             emoji="👥"
             title="No challenges yet"
             description={
-              user.role === "ADMIN"
+              admin
                 ? "Start by creating your first IPON challenge."
                 : "Ask your organizer to add you to a challenge."
             }
-            actionLabel={user.role === "ADMIN" ? "Create a challenge" : undefined}
+            actionLabel={admin ? "Create a challenge" : undefined}
             action={undefined}
           />
         </Card>

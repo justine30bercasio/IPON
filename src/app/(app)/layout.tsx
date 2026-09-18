@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/auth";
+import { getSession, isOrgAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getActiveMemberOptions } from "@/lib/queries";
 import { AppShell } from "@/components/layout/app-shell";
@@ -8,8 +8,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const user = await getSession();
   if (!user) redirect("/login");
 
+  const admin = isOrgAdmin(user);
   const challenges = await prisma.challenge.findMany({
     where: {
+      orgId: user.orgId,
       OR: [
         { createdById: user.id },
         {
@@ -17,14 +19,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             some: { userId: user.id, status: "ACTIVE" },
           },
         },
-        ...(user.role === "ADMIN"
-          ? [{ status: { not: "ARCHIVED" as const } }]
-          : []),
+        ...(admin ? [{ status: { not: "ARCHIVED" as const } }] : []),
       ],
       status: { not: "ARCHIVED" },
     },
     select: { id: true, name: true, status: true },
     orderBy: { createdAt: "desc" },
+  });
+
+  const org = await prisma.organization.findUnique({
+    where: { id: user.orgId },
+    select: { id: true, name: true },
   });
 
   const memberOptions = await getActiveMemberOptions(challenges.map((c) => c.id));
@@ -36,6 +41,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <AppShell
       user={{ id: user.id, name: user.name, role: user.role, email: user.email }}
+      orgName={org?.name ?? ""}
       challenges={challenges.map((c) => ({
         ...c,
         members: memberOptions[c.id] ?? [],

@@ -14,7 +14,9 @@ import {
   requestPasswordReset,
   resetPassword,
   requireAdmin,
+  isOrgAdmin,
 } from "@/lib/auth";
+import type { SessionUser } from "@/lib/auth";
 import { determinePeriod } from "@/lib/period";
 import type {
   PaymentMethod,
@@ -24,6 +26,10 @@ import type {
   TransactionStatus,
   Challenge,
 } from "@prisma/client";
+
+function hasOrgAccess(user: SessionUser, orgId: string): boolean {
+  return user.role === "SUPER_ADMIN" || user.orgId === orgId;
+}
 
 function revalidateAll() {
   revalidatePath("/", "layout");
@@ -151,7 +157,7 @@ export async function createChallengeAction(
   formData: FormData
 ): Promise<ActionResult> {
   const user = await requireUser();
-  if (user.role !== "ADMIN") {
+  if (!isOrgAdmin(user)) {
     return { ok: false, error: "Only organizers can create challenges." };
   }
 
@@ -196,6 +202,7 @@ export async function createChallengeAction(
 
   const challenge = await prisma.challenge.create({
     data: {
+      orgId: user.orgId,
       name,
       description,
       startDate,
@@ -244,7 +251,7 @@ export async function updateChallengeSettingsAction(
   formData: FormData
 ): Promise<ActionResult> {
   const user = await requireUser();
-  const challenge = await getOrCreateChallengeForAdmin(user.id, challengeId);
+  const challenge = await getOrCreateChallengeForAdmin(user, challengeId);
   if (!challenge) return { ok: false, error: "Challenge not found." };
 
   const name = String(formData.get("name") ?? "").trim();
@@ -296,7 +303,7 @@ export async function updateScheduleAction(
   formData: FormData
 ): Promise<ActionResult> {
   const user = await requireUser();
-  const challenge = await getOrCreateChallengeForAdmin(user.id, challengeId);
+  const challenge = await getOrCreateChallengeForAdmin(user, challengeId);
   if (!challenge) return { ok: false, error: "Challenge not found." };
 
   const frequency = String(formData.get("frequency") ?? "") as Frequency;
@@ -346,7 +353,7 @@ export async function deleteChallengeAction(
   challengeId: string
 ): Promise<ActionResult> {
   const user = await requireUser();
-  const challenge = await getOrCreateChallengeForAdmin(user.id, challengeId);
+  const challenge = await getOrCreateChallengeForAdmin(user, challengeId);
   if (!challenge) return { ok: false, error: "Challenge not found." };
 
   await prisma.challenge.delete({ where: { id: challenge.id } });
@@ -372,14 +379,17 @@ export async function addHulogAction(
     include: { schedules: true },
   });
   if (!challenge) return { ok: false, error: "Challenge not found." };
+  if (!hasOrgAccess(user, challenge.orgId)) {
+    return { ok: false, error: "Not authorized." };
+  }
   if (challenge.status !== "ACTIVE") {
     return { ok: false, error: "This challenge is not currently active." };
   }
-  if (!challenge.allowMemberHulog && user.role !== "ADMIN") {
+  if (!challenge.allowMemberHulog && !isOrgAdmin(user)) {
     return { ok: false, error: "Member hulog recording is disabled by the organizer." };
   }
 
-  const isAdmin = user.role === "ADMIN";
+  const isAdmin = isOrgAdmin(user);
   if (kind === "withdraw" && !isAdmin) {
     return { ok: false, error: "Only organizers can record withdrawals." };
   }
@@ -397,7 +407,7 @@ export async function addHulogAction(
   if (!membership || membership.challengeId !== challenge.id) {
     return { ok: false, error: "You're not a member of this challenge." };
   }
-  if (membership.status !== "ACTIVE" && user.role !== "ADMIN") {
+  if (membership.status !== "ACTIVE" && !isOrgAdmin(user)) {
     return { ok: false, error: "Your membership is inactive." };
   }
 
@@ -494,7 +504,7 @@ export async function recordHulogForMemberAction(
   formData: FormData
 ): Promise<ActionResult> {
   const user = await requireUser();
-  if (user.role !== "ADMIN") return { ok: false, error: "Admin access required." };
+  if (!isOrgAdmin(user)) return { ok: false, error: "Admin access required." };
   const kind = String(formData.get("kind") ?? "").trim() === "withdraw" ? "withdraw" : "hulog";
   const amount = quantizeAmount(formData.get("amount"));
   if (amount === null) return { ok: false, error: "Enter an amount greater than zero." };
@@ -505,6 +515,7 @@ export async function recordHulogForMemberAction(
     include: { schedules: true },
   });
   if (!challenge) return { ok: false, error: "Challenge not found." };
+  if (!hasOrgAccess(user, challenge.orgId)) return { ok: false, error: "Not authorized." };
   const membership = await prisma.challengeMember.findUnique({ where: { id: memberId } });
   if (!membership || membership.challengeId !== challenge.id) {
     return { ok: false, error: "Member not found in this challenge." };
@@ -574,13 +585,14 @@ export async function confirmTransactionAction(
   transactionId: string
 ): Promise<ActionResult> {
   const user = await requireUser();
-  if (user.role !== "ADMIN") return { ok: false, error: "Admin access required." };
+  if (!isOrgAdmin(user)) return { ok: false, error: "Admin access required." };
 
   const tx = await prisma.hulogTransaction.findUnique({
     where: { id: transactionId },
     include: { member: true, challenge: true },
   });
   if (!tx) return { ok: false, error: "Transaction not found." };
+  if (!hasOrgAccess(user, tx.challenge.orgId)) return { ok: false, error: "Not authorized." };
 
   await prisma.hulogTransaction.update({
     where: { id: tx.id },
@@ -611,12 +623,19 @@ export async function voidTransactionAction(
   transactionId: string
 ): Promise<ActionResult> {
   const user = await requireUser();
-  if (user.role !== "ADMIN") return { ok: false, error: "Admin access required." };
+  if (!isOrgAdmin(user)) return { ok: false, error: "Admin access required." };
   const tx = await prisma.hulogTransaction.findUnique({
     where: { id: transactionId },
     include: { member: { select: { userId: true } } },
   });
   if (!tx) return { ok: false, error: "Transaction not found." };
+  const challenge = await prisma.challenge.findUnique({
+    where: { id: tx.challengeId },
+    select: { orgId: true },
+  });
+  if (!challenge || !hasOrgAccess(user, challenge.orgId)) {
+    return { ok: false, error: "Not authorized." };
+  }
 
   await prisma.hulogTransaction.update({
     where: { id: tx.id },
@@ -655,7 +674,10 @@ export async function editTransactionAction(
     },
   });
   if (!tx) return { ok: false, error: "Transaction not found." };
-  if (user.role !== "ADMIN" && tx.member.userId !== user.id) {
+  if (!hasOrgAccess(user, tx.challenge.orgId)) {
+    return { ok: false, error: "Not authorized." };
+  }
+  if (!isOrgAdmin(user) && tx.member.userId !== user.id) {
     return { ok: false, error: "You can only edit your own transactions." };
   }
   if (tx.status === "VOIDED") return { ok: false, error: "Voided transactions can't be edited." };
@@ -664,7 +686,7 @@ export async function editTransactionAction(
   const schedule = tx.challenge.schedules[0];
   const period = determinePeriod(schedule?.frequency ?? "MONTHLY", date);
   const signedAmount = tx.amount < 0 ? -amount : amount;
-  const isAdmin = user.role === "ADMIN";
+  const isAdmin = isOrgAdmin(user);
   const newStatus: TransactionStatus = isAdmin ? "CONFIRMED" : "PENDING";
 
   const updated = await prisma.hulogTransaction.update({
@@ -702,7 +724,7 @@ export async function addMembersAction(
   formData: FormData
 ): Promise<ActionResult> {
   const user = await requireUser();
-  const challenge = await getOrCreateChallengeForAdmin(user.id, challengeId);
+  const challenge = await getOrCreateChallengeForAdmin(user, challengeId);
   if (!challenge) return { ok: false, error: "Challenge not found." };
 
   const raw = String(formData.get("members") ?? "");
@@ -729,6 +751,10 @@ export async function addMembersAction(
       .replace(/[^a-z0-9_.-]/gi, "")
       .toLowerCase();
     let memberUser = await prisma.user.findUnique({ where: { email } });
+    if (memberUser && memberUser.orgId !== challenge.orgId) {
+      errors++;
+      continue;
+    }
     if (!memberUser) {
       const existing = await prisma.user.findUnique({
         where: { username: baseUsername },
@@ -746,6 +772,7 @@ export async function addMembersAction(
           passwordHash: await hashPassword(password),
           role: "MEMBER",
           isActive: true,
+          orgId: challenge.orgId,
         },
       });
       newAccounts.push({ email, password });
@@ -799,7 +826,7 @@ export async function adminAddMembersAction(
   prev: unknown,
   formData: FormData
 ): Promise<ActionResult> {
-  await requireAdmin();
+  const user = await requireAdmin();
 
   const raw = String(formData.get("members") ?? "");
   const names = raw
@@ -842,6 +869,7 @@ export async function adminAddMembersAction(
         passwordHash: await hashPassword(password),
         role: "MEMBER",
         isActive: true,
+        orgId: user.orgId,
       },
     });
     newAccounts.push({ email, password });
@@ -870,7 +898,7 @@ export async function toggleMemberStatusAction(
   const user = await requireUser();
   const member = await prisma.challengeMember.findUnique({ where: { id: memberId } });
   if (!member) return { ok: false, error: "Member not found." };
-  const challenge = await getOrCreateChallengeForAdmin(user.id, member.challengeId);
+  const challenge = await getOrCreateChallengeForAdmin(user, member.challengeId);
   if (!challenge) return { ok: false, error: "Not authorized." };
   if (member.isAdmin) return { ok: false, error: "The organizer can't be deactivated." };
 
@@ -893,7 +921,7 @@ export async function removeMemberAction(memberId: string): Promise<ActionResult
     include: { user: { select: { name: true } } },
   });
   if (!member) return { ok: false, error: "Member not found." };
-  const challenge = await getOrCreateChallengeForAdmin(user.id, member.challengeId);
+  const challenge = await getOrCreateChallengeForAdmin(user, member.challengeId);
   if (!challenge) return { ok: false, error: "Not authorized." };
   if (member.isAdmin) return { ok: false, error: "The organizer can't be removed." };
 
@@ -969,9 +997,10 @@ export async function resetUserPasswordAction(
   formData: FormData
 ): Promise<ActionResult> {
   const user = await requireUser();
-  if (user.role !== "ADMIN") return { ok: false, error: "Admin access required." };
+  if (!isOrgAdmin(user)) return { ok: false, error: "Admin access required." };
   const dbUser = await prisma.user.findUnique({ where: { id: memberId } });
   if (!dbUser) return { ok: false, error: "User not found." };
+  if (!hasOrgAccess(user, dbUser.orgId)) return { ok: false, error: "Not authorized." };
   const password = String(formData.get("password") ?? "");
   if (password.length < 6) return { ok: false, error: "Password must be at least 6 characters." };
   await prisma.user.update({
@@ -987,7 +1016,7 @@ export async function updateMemberProfileAction(
   formData: FormData
 ): Promise<ActionResult> {
   const user = await requireUser();
-  if (user.role !== "ADMIN") return { ok: false, error: "Admin access required." };
+  if (!isOrgAdmin(user)) return { ok: false, error: "Admin access required." };
   const name = String(formData.get("name") ?? "").trim();
   if (name.length < 2) return { ok: false, error: "Name must be at least 2 characters." };
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
@@ -995,6 +1024,7 @@ export async function updateMemberProfileAction(
   const phone = String(formData.get("phone") ?? "").trim() || null;
   const dbUser = await prisma.user.findUnique({ where: { id: memberId } });
   if (!dbUser) return { ok: false, error: "User not found." };
+  if (!hasOrgAccess(user, dbUser.orgId)) return { ok: false, error: "Not authorized." };
 
   if (email !== dbUser.email) {
     const clash = await prisma.user.findUnique({
@@ -1032,6 +1062,10 @@ export async function toggleUserRoleAction(userId: string): Promise<ActionResult
   if (user.id === userId) return { ok: false, error: "You can't change your own role." };
   const target = await prisma.user.findUnique({ where: { id: userId } });
   if (!target) return { ok: false, error: "User not found." };
+  if (!hasOrgAccess(user, target.orgId)) return { ok: false, error: "Not authorized." };
+  if (target.role === "SUPER_ADMIN") {
+    return { ok: false, error: "Super admin roles are managed by the platform owner." };
+  }
   const next: "ADMIN" | "MEMBER" = target.role === "ADMIN" ? "MEMBER" : "ADMIN";
   await prisma.user.update({ where: { id: userId }, data: { role: next } });
   revalidateAll();
@@ -1049,6 +1083,10 @@ export async function toggleUserActiveAction(userId: string): Promise<ActionResu
   if (user.id === userId) return { ok: false, error: "You can't deactivate your own account." };
   const target = await prisma.user.findUnique({ where: { id: userId } });
   if (!target) return { ok: false, error: "User not found." };
+  if (!hasOrgAccess(user, target.orgId)) return { ok: false, error: "Not authorized." };
+  if (target.role === "SUPER_ADMIN") {
+    return { ok: false, error: "Super admin accounts cannot be deactivated." };
+  }
   const next = !target.isActive;
   await prisma.user.update({ where: { id: userId }, data: { isActive: next } });
   revalidateAll();
@@ -1065,6 +1103,10 @@ export async function deleteUserAction(userId: string): Promise<ActionResult> {
   if (user.id === userId) return { ok: false, error: "You can't delete your own account." };
   const target = await prisma.user.findUnique({ where: { id: userId } });
   if (!target) return { ok: false, error: "User not found." };
+  if (!hasOrgAccess(user, target.orgId)) return { ok: false, error: "Not authorized." };
+  if (target.role === "SUPER_ADMIN") {
+    return { ok: false, error: "Super admin accounts cannot be deleted." };
+  }
 
   const createdCount = await prisma.challenge.count({ where: { createdById: userId } });
   if (createdCount > 0) {
@@ -1085,17 +1127,61 @@ export async function deleteUserAction(userId: string): Promise<ActionResult> {
   return { ok: true, message: `${target.name} was deleted permanently.` };
 }
 
+export async function createOrganizationAction(
+  prev: unknown,
+  formData: FormData
+): Promise<ActionResult> {
+  const user = await requireAdmin();
+  if (user.role !== "SUPER_ADMIN") {
+    return { ok: false, error: "Super admin access required." };
+  }
+  const name = String(formData.get("name") ?? "").trim();
+  if (name.length < 3) return { ok: false, error: "Organization name must be at least 3 characters." };
+  const slug = String(formData.get("slug") ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  if (slug.length < 3) return { ok: false, error: "Slug must be at least 3 characters (letters, numbers, dashes)." };
+  if (await prisma.organization.findUnique({ where: { slug } })) {
+    return { ok: false, error: "That slug is already taken." };
+  }
+  await prisma.organization.create({
+    data: { name, slug },
+  });
+  revalidateAll();
+  return { ok: true, message: `Organization “${name}” created.` };
+}
+
+export async function renameOrganizationAction(
+  orgId: string,
+  prev: unknown,
+  formData: FormData
+): Promise<ActionResult> {
+  const user = await requireAdmin();
+  if (user.role !== "SUPER_ADMIN") {
+    return { ok: false, error: "Super admin access required." };
+  }
+  const org = await prisma.organization.findUnique({ where: { id: orgId } });
+  if (!org) return { ok: false, error: "Organization not found." };
+  const name = String(formData.get("name") ?? "").trim();
+  if (name.length < 3) return { ok: false, error: "Organization name must be at least 3 characters." };
+  await prisma.organization.update({ where: { id: org.id }, data: { name } });
+  revalidateAll();
+  return { ok: true, message: "Organization renamed." };
+}
+
 async function getOrCreateChallengeForAdmin(
-  userId: string,
+  user: SessionUser,
   challengeId: string
 ): Promise<Challenge | null> {
   const challenge = await prisma.challenge.findUnique({
     where: { id: challengeId },
-    include: { members: { where: { userId, isAdmin: true } } },
+    include: { members: { where: { userId: user.id, isAdmin: true } } },
   });
   if (!challenge) return null;
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
-  if (user?.role === "ADMIN") return challenge;
-  if (challenge.createdById !== userId && challenge.members.length === 0) return null;
+  if (user.role !== "SUPER_ADMIN" && challenge.orgId !== user.orgId) return null;
+  if (isOrgAdmin(user)) return challenge;
+  if (challenge.createdById !== user.id && challenge.members.length === 0) return null;
   return challenge;
 }

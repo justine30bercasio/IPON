@@ -7,8 +7,22 @@ datasource db {
 }
 
 enum Role {
+  SUPER_ADMIN
   ADMIN
   MEMBER
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users      User[]
+  challenges Challenge[]
+
+  @@index([name])
 }
 
 enum ChallengeStatus {
@@ -53,6 +67,8 @@ enum MembershipStatus {
 
 model User {
   id           String   @id @default(cuid())
+  orgId        String
+  org          Organization @relation(fields: [orgId], references: [id])
   email        String   @unique
   username     String   @unique
   name         String
@@ -75,10 +91,13 @@ model User {
   passwordResets      PasswordReset[]
 
   @@index([role])
+  @@index([orgId, role])
 }
 
 model Challenge {
   id                 String          @id @default(cuid())
+  orgId              String
+  org                Organization    @relation(fields: [orgId], references: [id])
   name               String
   description        String?
   startDate          DateTime
@@ -99,6 +118,7 @@ model Challenge {
   activityLogs ActivityLog[]
 
   @@index([status, createdById])
+  @@index([orgId, status])
 }
 
 model ChallengeSchedule {

@@ -1,6 +1,6 @@
 import { Coins, Wallet, Receipt } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/auth";
+import { requireUser, isOrgAdmin } from "@/lib/auth";
 import { getPersonalStats, getOrganizerOverview, getActiveMemberOptions } from "@/lib/queries";
 import { money } from "@/lib/format";
 import { PageHeader } from "@/components/layout/page-header";
@@ -12,16 +12,17 @@ import { AddHulogButton } from "@/components/dashboard/add-hulog-button";
 
 export default async function HulogHistoryPage() {
   const user = await requireUser();
-  const isAdmin = user.role === "ADMIN";
+  const isAdmin = isOrgAdmin(user);
 
   const stats = isAdmin
-    ? await getOrganizerOverview()
+    ? await getOrganizerOverview(user.orgId)
     : await getPersonalStats(user.id);
 
   const challenges = await prisma.challenge.findMany({
     where: isAdmin
-      ? { status: { not: "ARCHIVED" } }
+      ? { orgId: user.orgId, status: { not: "ARCHIVED" } }
       : {
+          orgId: user.orgId,
           OR: [
             { createdById: user.id },
             { members: { some: { userId: user.id } } },
@@ -45,7 +46,7 @@ export default async function HulogHistoryPage() {
 
   const txs = await prisma.hulogTransaction.findMany({
     where: isAdmin
-      ? { challenge: { status: { not: "ARCHIVED" } }, status: { not: "VOIDED" } }
+      ? { challenge: { orgId: user.orgId, status: { not: "ARCHIVED" } }, status: { not: "VOIDED" } }
       : { member: { userId: user.id }, status: { not: "VOIDED" } },
     include: {
       challenge: { select: { id: true, name: true } },

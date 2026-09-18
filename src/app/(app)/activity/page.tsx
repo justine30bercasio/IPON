@@ -12,7 +12,7 @@ import {
   UserCog,
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/auth";
+import { requireUser, isOrgAdmin } from "@/lib/auth";
 import { formatTimeAgo } from "@/lib/format";
 import { PageHeader } from "@/components/layout/page-header";
 import { Avatar } from "@/components/ui/avatar";
@@ -34,8 +34,17 @@ const typeMeta: Record<string, { icon: React.ElementType; bg: string; text: stri
 
 export default async function ActivityPage() {
   const user = await requireUser();
+  const admin = isOrgAdmin(user);
 
   const logs = await prisma.activityLog.findMany({
+    where: admin
+      ? {
+          OR: [
+            { challenge: { orgId: user.orgId } },
+            { challengeId: null, userId: user.id },
+          ],
+        }
+      : { userId: user.id },
     orderBy: { createdAt: "desc" },
     take: 200,
     include: {
@@ -45,7 +54,7 @@ export default async function ActivityPage() {
   });
 
   const visible = logs.filter((l) => {
-    if (user.role === "ADMIN") return true;
+    if (admin) return true;
     return l.userId === user.id || l.challengeId === null;
   });
 

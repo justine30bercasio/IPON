@@ -10,6 +10,8 @@ const adapter = new PrismaPg({
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
+  const orgName = process.env.DEFAULT_ORG_NAME ?? "ICDeC";
+  const orgSlug = process.env.DEFAULT_ORG_SLUG ?? "icdec";
   const email = process.env.ADMIN_EMAIL ?? "jbercasio@gmail.com";
   const name = process.env.ADMIN_NAME ?? "Justine Bercasio";
   const username = process.env.ADMIN_USERNAME ?? "justine";
@@ -21,23 +23,43 @@ async function main() {
     );
   }
 
+  const org = await prisma.organization.upsert({
+    where: { slug: orgSlug },
+    update: {},
+    create: {
+      name: orgName,
+      slug: orgSlug,
+    },
+  });
+
   const passwordHash = await bcrypt.hash(password, 12);
 
   const admin = await prisma.user.upsert({
     where: { email },
-    update: { role: "ADMIN" },
+    update: { role: "ADMIN", orgId: org.id },
     create: {
       email,
       username,
       name,
       role: "ADMIN",
+      orgId: org.id,
       passwordHash,
     },
   });
 
+  const superEmail = process.env.SUPER_ADMIN_EMAIL;
+  if (superEmail && superEmail === email) {
+    await prisma.user.update({
+      where: { id: admin.id },
+      data: { role: "SUPER_ADMIN" },
+    });
+    console.log(`  Super admin promoted: ${email}`);
+  }
+
   console.log("Production bootstrap complete.");
-  console.log(`  Admin email:  ${admin.email}`);
-  console.log(`  Admin name :  ${admin.name}`);
+  console.log(`  Organization: ${org.name} (${org.slug})`);
+  console.log(`  Admin email : ${admin.email}`);
+  console.log(`  Admin name  : ${admin.name}`);
   console.log("  Change the password after the first login.");
 }
 

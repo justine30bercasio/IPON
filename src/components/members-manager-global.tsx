@@ -200,11 +200,11 @@ export function MembersManager({
                       </div>
                     </div>
                   </td>
-                  <td className="px-5 py-3">
-                    <Badge tone={m.role === "ADMIN" ? "primary" : "neutral"}>
-                      {m.role === "ADMIN" ? "Admin" : "Member"}
-                    </Badge>
-                  </td>
+                   <td className="px-5 py-3">
+                     <Badge tone={m.role === "SUPER_ADMIN" ? "primary" : m.role === "ADMIN" ? "primary" : "neutral"}>
+                       {m.role === "SUPER_ADMIN" ? "Super Admin" : m.role === "ADMIN" ? "Admin" : "Member"}
+                     </Badge>
+                   </td>
                   <td className="px-5 py-3">
                     <p className="font-semibold text-ink">{m.challengeCount}</p>
                     <p className="max-w-40 truncate text-xs text-ink-soft/60">
@@ -218,24 +218,26 @@ export function MembersManager({
                   </td>
                   <td className="px-5 py-3">
                     <div className="flex justify-end gap-1.5">
-                      <button
-                        onClick={() => toggleRole(m)}
-                        disabled={self(m.id) || busy}
-                        className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft/60 transition-colors enabled:hover:bg-indigo-50 enabled:hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
-                        title={
-                          self(m.id)
-                            ? "This is you"
-                            : m.role === "ADMIN"
-                              ? "Demote to member"
-                              : "Make admin"
-                        }
-                      >
-                        {m.role === "ADMIN" ? (
-                          <ShieldOff className="h-4 w-4" />
-                        ) : (
-                          <Shield className="h-4 w-4" />
-                        )}
-                      </button>
+                      {m.role !== "SUPER_ADMIN" && (
+                        <button
+                          onClick={() => toggleRole(m)}
+                          disabled={self(m.id) || busy}
+                          className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft/60 transition-colors enabled:hover:bg-indigo-50 enabled:hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+                          title={
+                            self(m.id)
+                              ? "This is you"
+                              : m.role === "ADMIN"
+                                ? "Demote to member"
+                                : "Make admin"
+                          }
+                        >
+                          {m.role === "ADMIN" ? (
+                            <ShieldOff className="h-4 w-4" />
+                          ) : (
+                            <Shield className="h-4 w-4" />
+                          )}
+                        </button>
+                      )}
                       <button
                         onClick={() => {
                           setEditing(m);
@@ -243,8 +245,9 @@ export function MembersManager({
                           setEmail(m.email);
                           setPhone(m.phone ?? "");
                         }}
-                        className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft/60 transition-colors hover:bg-brand-50 hover:text-brand-700"
-                        title="Edit profile"
+                        disabled={m.role === "SUPER_ADMIN"}
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft/60 transition-colors enabled:hover:bg-brand-50 enabled:hover:text-brand-700 disabled:cursor-not-allowed disabled:opacity-40"
+                        title={m.role === "SUPER_ADMIN" ? "Super admin profiles are locked" : "Edit profile"}
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
@@ -253,21 +256,24 @@ export function MembersManager({
                           setResetting(m);
                           setPassword("");
                         }}
-                        className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft/60 transition-colors hover:bg-amber-50 hover:text-amber-700"
-                        title="Reset password"
+                        disabled={m.role === "SUPER_ADMIN"}
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft/60 transition-colors enabled:hover:bg-amber-50 enabled:hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-40"
+                        title={m.role === "SUPER_ADMIN" ? "Super admin password can't be reset" : "Reset password"}
                       >
                         <KeyRound className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => setDeactivating(m)}
-                        disabled={self(m.id) || busy}
+                        disabled={self(m.id) || busy || m.role === "SUPER_ADMIN"}
                         className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft/60 transition-colors enabled:hover:bg-slate-100 enabled:hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
                         title={
                           self(m.id)
                             ? "This is you"
-                            : m.isActive
-                              ? "Set inactive"
-                              : "Re-activate"
+                            : m.role === "SUPER_ADMIN"
+                              ? "Super admins can't be deactivated"
+                              : m.isActive
+                                ? "Set inactive"
+                                : "Re-activate"
                         }
                       >
                         {m.isActive ? (
@@ -278,9 +284,9 @@ export function MembersManager({
                       </button>
                       <button
                         onClick={() => setDeleting(m)}
-                        disabled={self(m.id) || busy}
+                        disabled={self(m.id) || busy || m.role === "SUPER_ADMIN"}
                         className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft/60 transition-colors enabled:hover:bg-rose-50 enabled:hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-40"
-                        title={self(m.id) ? "This is you" : "Delete user"}
+                        title={self(m.id) ? "This is you" : m.role === "SUPER_ADMIN" ? "Super admins can't be deleted" : "Delete user"}
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -301,8 +307,8 @@ export function MembersManager({
                   <p className="truncate text-sm font-bold text-ink">{m.name}</p>
                   <p className="truncate text-xs text-ink-soft/70">{m.email}</p>
                 </div>
-                <Badge tone={m.role === "ADMIN" ? "primary" : "neutral"}>
-                  {m.role === "ADMIN" ? "Admin" : "Member"}
+                <Badge tone={m.role === "SUPER_ADMIN" ? "primary" : m.role === "ADMIN" ? "primary" : "neutral"}>
+                  {m.role === "SUPER_ADMIN" ? "Super Admin" : m.role === "ADMIN" ? "Admin" : "Member"}
                 </Badge>
               </div>
               <div className="mt-2 flex items-center justify-between">
@@ -315,14 +321,16 @@ export function MembersManager({
                 <div className="flex gap-1 flex-wrap">
                   <button
                     onClick={() => toggleRole(m)}
-                    disabled={self(m.id) || busy}
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-50 text-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    disabled={self(m.id) || busy || m.role === "SUPER_ADMIN"}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-50 text-indigo-700 enabled:hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-40"
                     title={
                       self(m.id)
                         ? "This is you"
-                        : m.role === "ADMIN"
-                          ? "Demote to member"
-                          : "Make admin"
+                        : m.role === "SUPER_ADMIN"
+                          ? "Super admins can't be demoted"
+                          : m.role === "ADMIN"
+                            ? "Demote to member"
+                            : "Make admin"
                     }
                   >
                     {m.role === "ADMIN" ? (
@@ -338,7 +346,9 @@ export function MembersManager({
                       setEmail(m.email);
                       setPhone(m.phone ?? "");
                     }}
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-mist text-ink-soft/70"
+                    disabled={m.role === "SUPER_ADMIN"}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-mist text-ink-soft/70 enabled:hover:bg-brand-50 enabled:hover:text-brand-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    title={m.role === "SUPER_ADMIN" ? "Super admin profiles are locked" : "Edit profile"}
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
@@ -347,15 +357,17 @@ export function MembersManager({
                       setResetting(m);
                       setPassword("");
                     }}
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-50 text-amber-700"
+                    disabled={m.role === "SUPER_ADMIN"}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-50 text-amber-700 enabled:hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-40"
+                    title={m.role === "SUPER_ADMIN" ? "Super admin password can't be reset" : "Reset password"}
                   >
                     <KeyRound className="h-3.5 w-3.5" />
                   </button>
                   <button
                     onClick={() => setDeactivating(m)}
-                    disabled={self(m.id) || busy}
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
-                    title={self(m.id) ? "This is you" : m.isActive ? "Set inactive" : "Re-activate"}
+                    disabled={self(m.id) || busy || m.role === "SUPER_ADMIN"}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-700 enabled:hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
+                    title={self(m.id) ? "This is you" : m.role === "SUPER_ADMIN" ? "Super admins can't be deactivated" : m.isActive ? "Set inactive" : "Re-activate"}
                   >
                     {m.isActive ? (
                       <UserX className="h-3.5 w-3.5" />
@@ -365,9 +377,9 @@ export function MembersManager({
                   </button>
                   <button
                     onClick={() => setDeleting(m)}
-                    disabled={self(m.id) || busy}
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-50 text-rose-700 disabled:cursor-not-allowed disabled:opacity-40"
-                    title={self(m.id) ? "This is you" : "Delete user"}
+                    disabled={self(m.id) || busy || m.role === "SUPER_ADMIN"}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-50 text-rose-700 enabled:hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40"
+                    title={self(m.id) ? "This is you" : m.role === "SUPER_ADMIN" ? "Super admins can't be deleted" : "Delete user"}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>

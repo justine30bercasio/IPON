@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Coins, Wallet, CalendarDays, Layers, Users, ArrowRight } from "lucide-react";
-import { getSession } from "@/lib/auth";
+import { getSession, isOrgAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
   getPersonalStats,
@@ -24,12 +24,13 @@ export default async function DashboardPage() {
 
   const stats = await getPersonalStats(user.id);
   const role = user.role;
-  const isAdmin = role === "ADMIN";
+  const isAdmin = isOrgAdmin(user);
 
   const myChallenges = await prisma.challenge.findMany({
     where: isAdmin
-      ? { status: "ACTIVE" }
+      ? { orgId: user.orgId, status: "ACTIVE" }
       : {
+          orgId: user.orgId,
           OR: [{ members: { some: { userId: user.id, status: "ACTIVE" } } }, { createdById: user.id }],
           status: "ACTIVE",
         },
@@ -45,7 +46,7 @@ export default async function DashboardPage() {
 
   const memberOptions = await getActiveMemberOptions(myChallenges.map((c) => c.id));
 
-  const overview = isAdmin ? await getOrganizerOverview() : null;
+  const overview = isAdmin ? await getOrganizerOverview(user.orgId) : null;
 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -54,7 +55,7 @@ export default async function DashboardPage() {
     ? (
         await prisma.hulogTransaction.findMany({
           where: {
-            challenge: { status: { not: "ARCHIVED" } },
+            challenge: { orgId: user.orgId, status: { not: "ARCHIVED" } },
             status: { not: "VOIDED" },
           },
           include: {
@@ -80,7 +81,7 @@ export default async function DashboardPage() {
           where: {
             member: { userId: user.id },
             status: { not: "VOIDED" },
-            challenge: { status: { not: "ARCHIVED" } },
+            challenge: { orgId: user.orgId, status: { not: "ARCHIVED" } },
           },
           include: { challenge: { select: { name: true } } },
           orderBy: { transactionDate: "desc" },
@@ -98,7 +99,7 @@ export default async function DashboardPage() {
         memberName: null as string | null,
       }));
 
-  const globalSeries = await getChallengeMonthlySeriesForUser(user.id, role);
+  const globalSeries = await getChallengeMonthlySeriesForUser(user.orgId, role, user.id);
   const chartData = isAdmin ? globalSeries : stats.monthly;
 
   return (
@@ -337,12 +338,12 @@ function strip(
   }));
 }
 
-async function getChallengeMonthlySeriesForUser(userId: string, role: string) {
+async function getChallengeMonthlySeriesForUser(orgId: string, role: string, userId: string) {
   const challenges = await prisma.challenge.findMany({
     where:
-      role === "ADMIN"
-        ? { status: { not: "ARCHIVED" } }
-        : { members: { some: { userId, status: "ACTIVE" } } },
+      role === "ADMIN" || role === "SUPER_ADMIN"
+        ? { orgId, status: { not: "ARCHIVED" } }
+        : { orgId, members: { some: { userId, status: "ACTIVE" } } },
     select: { id: true },
   });
   const ids = challenges.map((c) => c.id);

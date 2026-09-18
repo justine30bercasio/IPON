@@ -1,15 +1,16 @@
 import { redirect } from "next/navigation";
 import { Users } from "lucide-react";
-import { requireUser } from "@/lib/auth";
+import { requireUser, isOrgAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/layout/page-header";
 import { MembersManager } from "@/components/members-manager-global";
 
 export default async function MembersPage() {
   const user = await requireUser();
-  if (user.role !== "ADMIN") redirect("/dashboard");
+  if (!isOrgAdmin(user)) redirect("/dashboard");
 
   const users = await prisma.user.findMany({
+    where: { orgId: user.orgId },
     include: { memberships: { include: { challenge: { select: { name: true } } } } },
     orderBy: { createdAt: "asc" },
   });
@@ -30,7 +31,7 @@ export default async function MembersPage() {
     <div className="space-y-6">
       <PageHeader
         title="Members"
-        subtitle="Everyone registered across the whole app."
+        subtitle="Everyone registered in this organization."
       />
       <div className="flex items-center gap-3 rounded-2xl border border-brand-200 bg-brand-50/60 px-4 py-3">
         <Users className="h-5 w-5 shrink-0 text-brand-600" />
