@@ -3,6 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useActionState } from "react";
 import { Mail, KeyRound, RotateCcw } from "lucide-react";
 import { forgotPasswordAction, type ActionResult } from "@/lib/actions";
@@ -19,6 +20,7 @@ export default function ForgotPasswordPage() {
   const [resetError, setResetError] = React.useState("");
   const [resetBusy, setResetBusy] = React.useState(false);
   const resetFormRef = React.useRef<HTMLFormElement>(null);
+  const router = useRouter();
 
   React.useEffect(() => {
     const form = resetFormRef.current;
@@ -34,7 +36,7 @@ export default function ForgotPasswordPage() {
           setResetError(data?.error ?? "Reset failed. Please try again.");
           return;
         }
-        window.location.href = "/dashboard";
+        router.push("/dashboard");
       } catch {
         setResetError("Something went wrong. Please try again.");
       } finally {
@@ -43,7 +45,7 @@ export default function ForgotPasswordPage() {
     };
     form.addEventListener("submit", onSubmit);
     return () => form.removeEventListener("submit", onSubmit);
-  }, [requestState.ok]);
+  }, [requestState.ok, router]);
 
   React.useEffect(() => {
     const t = setTimeout(() => {
@@ -55,7 +57,7 @@ export default function ForgotPasswordPage() {
   }, []);
 
   const showReset = !!requestState.ok;
-  const code = requestState.ok ? requestState.message ?? "" : "";
+  const code = requestState.ok ? requestState.code ?? "" : "";
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center px-5 py-10">
@@ -100,14 +102,20 @@ export default function ForgotPasswordPage() {
           </form>
         ) : (
           <form ref={resetFormRef} action="/api/auth/reset" method="POST" className="animate-fade-up flex flex-col gap-4">
-            <div className="rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-center">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-brand-700/70">
-                Your reset code · valid 15 minutes
-              </p>
-              <p className="mt-1 font-mono text-2xl font-extrabold tracking-[0.25em] text-brand-700">
-                {code}
-              </p>
-            </div>
+            {code ? (
+              <div className="rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-center">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-brand-700/70">
+                  Your reset code · valid 15 minutes
+                </p>
+                <p className="mt-1 font-mono text-2xl font-extrabold tracking-[0.25em] text-brand-700">
+                  {code}
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-center text-sm font-medium text-brand-700">
+                {requestState.message}
+              </div>
+            )}
 
             <Field label="Reset code">
               <div className="relative">

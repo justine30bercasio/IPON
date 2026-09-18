@@ -35,6 +35,7 @@ export default async function ChallengePage({
   const ctx = await getChallengeContext(id);
   if (!ctx) notFound();
   const { challenge, isAdmin, user, isMember, memberStatus } = ctx;
+  if (!isMember && !isAdmin) notFound();
 
   const totals = await getChallengeTotals(challenge.id);
   const monthly = await getChallengeMonthlySeries(challenge.id, 8);

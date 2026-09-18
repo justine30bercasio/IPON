@@ -55,6 +55,7 @@ export function AddHulogModal({
   const [date, setDate] = React.useState(todayValue());
   const [method, setMethod] = React.useState("CASH");
   const isWithdraw = kind === "withdraw";
+  const needsMember = !!isAdmin || isWithdraw;
 
   const activeChallenge = challenges.find((c) => c.id === challengeId);
   const members = activeChallenge?.members ?? [];
@@ -75,7 +76,7 @@ export function AddHulogModal({
   }, [state, router, onDone, isAdmin]);
 
   const canSubmit =
-    challengeId && parseFloat(amount) > 0 && !pending && (!isWithdraw || !!memberId);
+    challengeId && parseFloat(amount) > 0 && !pending && (!needsMember || !!memberId);
 
   return (
     <Modal
@@ -122,9 +123,7 @@ export function AddHulogModal({
               onChange={(e) => {
                 const next = e.target.value;
                 setChallengeId(next);
-                setMemberId(
-                  challenges.find((c) => c.id === next)?.members?.[0]?.id ?? ""
-                );
+                setMemberId("");
               }}
             >
               {challenges.map((c) => (
@@ -136,17 +135,20 @@ export function AddHulogModal({
           </Field>
         )}
 
-        {isAdmin && members.length > 0 && (
+        {needsMember && members.length > 0 && (
           <Field
             label="Record for member"
             hint={
               isWithdraw
                 ? "The member receiving this payout."
-                : "The person who contributed this hulog."
+                : isAdmin
+                  ? "Choose who contributed this hulog. This prevents it going to the wrong person."
+                  : "The person who contributed this hulog."
             }
           >
             <input type="hidden" name="memberId" value={memberId} />
             <Select value={memberId} onChange={(e) => setMemberId(e.target.value)}>
+              <option value="">Select a member…</option>
               {members.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name}

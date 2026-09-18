@@ -54,3 +54,7 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# member dataset & import tooling (contains real organizer/member data — never commit)
+/prisma/ipon2026.json
+/scripts/

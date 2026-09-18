@@ -65,10 +65,12 @@ export default async function ActivityPage() {
       ) : (
         <DataTable
           rows={visible.map((log) => {
-            const meta = typeMeta[log.type] ?? typeMeta.HULOG;
+            const metaKey = log.type.toUpperCase().replace(/[\s-]+/g, "_");
+            const meta = typeMeta[log.type] ?? typeMeta[metaKey] ?? typeMeta.HULOG;
             const Icon = meta.icon;
             const performer = log.user?.id === user.id ? "You" : (log.user?.name ?? "System");
             const details = log.challenge ? `In “${log.challenge.name}”` : "On your account";
+            const detailNote = log.message && log.message !== details ? <p className="text-[11px] font-normal text-ink-soft/70">{log.message}</p> : null;
             return {
               id: log.id,
               searchText: `${performer} ${details} ${meta.label}`,
@@ -88,7 +90,7 @@ export default async function ActivityPage() {
                       <span className="font-semibold text-ink-soft">{meta.label}</span>
                     </div>
                   </td>
-                  <td className="min-w-40 px-4 py-3.5 font-medium text-ink-soft">{details}</td>
+                  <td className="min-w-40 px-4 py-3.5 font-medium text-ink-soft">{details}{detailNote}</td>
                   <td className="whitespace-nowrap px-4 py-3.5 text-right">
                     <p className="text-xs font-semibold text-ink-soft/80">
                       {new Date(format(log.createdAt, "yyyy-MM-dd") + "T12:00:00").toLocaleDateString("en-PH", {

@@ -30,6 +30,7 @@ enum Frequency {
   BIWEEKLY
   TWICE_MONTHLY
   CUSTOM
+  FLEXIBLE
 }
 
 enum PaymentMethod {

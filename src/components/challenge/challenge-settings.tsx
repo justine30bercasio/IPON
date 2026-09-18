@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   CalendarDays,
   CalendarRange,
+  CalendarOff,
   Plus,
   AlertTriangle,
   Save,
@@ -28,7 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toast";
 import { describeSchedule } from "@/lib/period";
 
-type Frequency = "MONTHLY" | "WEEKLY" | "BIWEEKLY" | "TWICE_MONTHLY" | "CUSTOM";
+type Frequency = "MONTHLY" | "WEEKLY" | "BIWEEKLY" | "TWICE_MONTHLY" | "CUSTOM" | "FLEXIBLE";
 
 export interface ChallengeShape {
   id: string;
@@ -157,13 +158,14 @@ export function ChallengeSettings({ challenge }: { challenge: ChallengeShape }) 
           subtitle={`Currently: ${describeSchedule({ ...schedule, frequency: schedule.frequency as Frequency })}`}
         />
         <CardContent className="flex flex-col gap-5">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
             {([
               ["MONTHLY", "Monthly", CalendarDays],
               ["TWICE_MONTHLY", "Twice a Month", CalendarRange],
               ["WEEKLY", "Weekly", CalendarDays],
               ["BIWEEKLY", "Every 2 Weeks", CalendarRange],
               ["CUSTOM", "Custom", Plus],
+              ["FLEXIBLE", "Any Day", CalendarOff],
             ] as [Frequency, string, React.ElementType][]).map(([value, label, Icon]) => {
               const checked = frequency === value;
               return (
@@ -236,6 +238,11 @@ export function ChallengeSettings({ challenge }: { challenge: ChallengeShape }) 
                 placeholder={"2026-09-15\n2026-09-30\n2026-10-15"}
               />
             </Field>
+          )}
+          {frequency === "FLEXIBLE" && (
+            <div className="rounded-xl bg-brand-50 px-4 py-3 text-sm font-medium text-brand-800">
+              No fixed collection date — members can hulog on any day of the challenge.
+            </div>
           )}
 
           <div className="flex justify-end">

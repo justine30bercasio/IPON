@@ -84,10 +84,6 @@ export function TransactionsTable({
   const safePage = Math.min(page, totalPages);
   const paged = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  React.useEffect(() => {
-    setPage(1);
-  }, [q, month, method, status]);
-
   const clearFilters =
     q || month || method || status;
 
@@ -110,7 +106,10 @@ export function TransactionsTable({
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft/50" />
           <input
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => {
+            setQ(e.target.value);
+            setPage(1);
+          }}
             placeholder="Search by amount, period, member…"
             className="h-10 w-full rounded-xl border border-line bg-white pl-9 pr-3 text-sm text-ink shadow-soft outline-none transition-all focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10"
           />
@@ -118,7 +117,10 @@ export function TransactionsTable({
         <div className="flex flex-wrap items-center gap-2">
           <select
             value={month}
-            onChange={(e) => setMonth(e.target.value)}
+            onChange={(e) => {
+              setMonth(e.target.value);
+              setPage(1);
+            }}
             className="h-10 rounded-xl border border-line bg-white px-3 text-sm font-medium text-ink shadow-soft outline-none focus:border-brand-400"
           >
             <option value="">All periods</option>
@@ -130,7 +132,10 @@ export function TransactionsTable({
           </select>
           <select
             value={method}
-            onChange={(e) => setMethod(e.target.value)}
+            onChange={(e) => {
+              setMethod(e.target.value);
+              setPage(1);
+            }}
             className="h-10 rounded-xl border border-line bg-white px-3 text-sm font-medium text-ink shadow-soft outline-none focus:border-brand-400"
           >
             <option value="">All methods</option>
@@ -142,7 +147,10 @@ export function TransactionsTable({
           </select>
           <select
             value={status}
-            onChange={(e) => setStatus(e.target.value)}
+            onChange={(e) => {
+              setStatus(e.target.value);
+              setPage(1);
+            }}
             className="h-10 rounded-xl border border-line bg-white px-3 text-sm font-medium text-ink shadow-soft outline-none focus:border-brand-400"
           >
             <option value="">All statuses</option>
@@ -159,6 +167,7 @@ export function TransactionsTable({
                 setMonth("");
                 setMethod("");
                 setStatus("");
+                setPage(1);
               }}
               className="flex h-10 items-center gap-1.5 rounded-xl border border-line bg-white px-3 text-sm font-semibold text-ink-soft transition-colors hover:bg-mist"
             >

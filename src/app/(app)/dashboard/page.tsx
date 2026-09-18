@@ -356,7 +356,7 @@ async function getChallengeMonthlySeriesForUser(userId: string, role: string) {
   const txs = await prisma.hulogTransaction.findMany({
     where: {
       challengeId: { in: ids },
-      status: { not: "VOIDED" },
+      status: "CONFIRMED",
       transactionDate: { gte: start },
     },
     select: { amount: true, transactionDate: true, memberId: true },

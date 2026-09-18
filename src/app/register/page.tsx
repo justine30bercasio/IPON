@@ -3,6 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Eye, EyeOff, User, Mail, AtSign, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
@@ -12,6 +13,7 @@ export default function RegisterPage() {
   const [error, setError] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const formRef = React.useRef<HTMLFormElement>(null);
+  const router = useRouter();
 
   React.useEffect(() => {
     const form = formRef.current;
@@ -27,7 +29,7 @@ export default function RegisterPage() {
           setError(data?.error ?? "Registration failed. Please try again.");
           return;
         }
-        window.location.href = "/dashboard";
+        router.push("/dashboard");
       } catch {
         setError("Something went wrong. Please try again.");
       } finally {
@@ -36,7 +38,7 @@ export default function RegisterPage() {
     };
     form.addEventListener("submit", onSubmit);
     return () => form.removeEventListener("submit", onSubmit);
-  }, []);
+  }, [router]);
 
   React.useEffect(() => {
     const t = setTimeout(() => {

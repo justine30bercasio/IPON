@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 
 export function SignOutButton({
@@ -7,13 +8,14 @@ export function SignOutButton({
 }: {
   variant?: "icon" | "full";
 }) {
+  const router = useRouter();
   const signOut = async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST", cache: "no-store" });
     } catch {
       /* ignore */
     }
-    window.location.href = "/login?loggedOut=1";
+    router.push("/login?loggedOut=1");
   };
 
   if (variant === "full") {

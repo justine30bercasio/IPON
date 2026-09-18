@@ -78,7 +78,7 @@ export async function getMemberAggregates(
     include: {
       user: { select: { id: true, name: true, email: true } },
       transactions: {
-        where: { status: { not: "VOIDED" } },
+        where: { status: "CONFIRMED" },
         select: { amount: true, transactionDate: true },
         orderBy: { transactionDate: "desc" },
       },
@@ -116,7 +116,7 @@ export async function getMemberAggregates(
 
 export async function getChallengeTotals(challengeId: string) {
   const txs = await prisma.hulogTransaction.findMany({
-    where: { challengeId, status: { not: "VOIDED" } },
+    where: { challengeId, status: "CONFIRMED" },
     select: { amount: true, transactionDate: true },
   });
   const total = txs.reduce((s, t) => s + t.amount, 0);
@@ -142,7 +142,7 @@ export async function getOrganizerOverview(): Promise<OrganizerOverview> {
     include: {
       members: { select: { userId: true } },
       transactions: {
-        where: { status: { not: "VOIDED" } },
+        where: { status: "CONFIRMED" },
         select: { amount: true, transactionDate: true },
       },
     },

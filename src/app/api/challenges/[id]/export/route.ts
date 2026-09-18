@@ -17,7 +17,7 @@ export async function GET(
 
   const challenge = await prisma.challenge.findUnique({ where: { id: challengeId } });
   if (!challenge) return new Response("Not found", { status: 404 });
-  const isAdmin = await isAdminOf(user.id, challengeId);
+  const isAdmin = await isAdminOf(user, challengeId);
   if (!isAdmin) return new Response("Forbidden", { status: 403 });
 
   const txs = await prisma.hulogTransaction.findMany({
@@ -42,7 +42,8 @@ export async function GET(
   if (format === "csv") {
     const esc = (v: string | number) => {
       const s = String(v);
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+      return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
     };
     const lines = [
       ["Member", "Email", "Date", "Period", "Amount (PHP)", "Payment Method", "Status", "Note"].map(esc).join(","),
@@ -213,12 +214,13 @@ function escapeHtml(s: string): string {
   );
 }
 
-async function isAdminOf(userId: string, challengeId: string): Promise<boolean> {
+async function isAdminOf(user: { id: string; role: string }, challengeId: string): Promise<boolean> {
+  if (user.role === "ADMIN") return true;
   const c = await prisma.challenge.findUnique({
     where: { id: challengeId },
-    include: { members: { where: { userId, isAdmin: true } } },
+    include: { members: { where: { userId: user.id, isAdmin: true } } },
   });
   if (!c) return false;
-  if (c.createdById === userId) return true;
+  if (c.createdById === user.id) return true;
   return c.members.length > 0;
 }

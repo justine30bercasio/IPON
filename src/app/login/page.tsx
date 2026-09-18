@@ -3,7 +3,8 @@
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Eye, EyeOff, Mail, Lock, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Eye, EyeOff, Mail, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Field } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
@@ -13,6 +14,7 @@ export default function LoginPage() {
   const [error, setError] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const formRef = React.useRef<HTMLFormElement>(null);
+  const router = useRouter();
 
   React.useEffect(() => {
     const form = formRef.current;
@@ -28,7 +30,7 @@ export default function LoginPage() {
           setError(data?.error ?? "Sign in failed. Please try again.");
           return;
         }
-        window.location.href = "/dashboard";
+        router.push("/dashboard");
       } catch {
         setError("Something went wrong. Please try again.");
       } finally {
@@ -37,7 +39,7 @@ export default function LoginPage() {
     };
     form.addEventListener("submit", onSubmit);
     return () => form.removeEventListener("submit", onSubmit);
-  }, []);
+  }, [router]);
 
   React.useEffect(() => {
     const t = setTimeout(() => {
@@ -196,19 +198,9 @@ export default function LoginPage() {
             </Link>
           </div>
 
-          <div className="mt-8 rounded-2xl border border-line/70 bg-white p-4 shadow-soft">
-            <div className="flex items-center gap-2 text-[13px] font-bold text-ink">
-              <Sparkles className="h-4 w-4 text-brand-600" />
-              Try the demo
-            </div>
-            <p className="mt-1 text-xs text-ink-soft/70">
-              Organizer: <span className="font-semibold text-ink">admin@ipon.local</span>
-              <br />
-              Member: <span className="font-semibold text-ink">juan@ipon.local</span>
-              <br />
-              Password: <span className="font-semibold text-ink">ipon12345</span>
-            </p>
-          </div>
+          <p className="mt-6 text-center text-[11px] font-medium text-ink-soft/50">
+            Developed by Justine Bercasio · Founder of CodeCraft Solution
+          </p>
         </div>
       </div>
     </div>

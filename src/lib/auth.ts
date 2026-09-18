@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
+import { rateLimit } from "@/lib/rate-limit";
 import type { User } from "@prisma/client";
 
 const COOKIE_NAME = "ipon_session";
@@ -136,6 +137,10 @@ export async function loginUser(
   remember: boolean = true
 ): Promise<AuthResult> {
   const handle = emailOrUsername.trim().toLowerCase();
+  const allowed = await rateLimit(`login:${handle}`, 5);
+  if (!allowed) {
+    return { ok: false, error: "Too many login attempts. Try again in 15 minutes." };
+  }
   const user = await prisma.user.findFirst({
     where: {
       OR: [{ email: handle }, { username: emailOrUsername.trim() }],
@@ -160,6 +165,10 @@ export async function registerUser(data: {
 }): Promise<AuthResult> {
   const email = data.email.trim().toLowerCase();
   const username = data.username.trim().toLowerCase();
+  const allowed = await rateLimit(`register:${email}`, 3);
+  if (!allowed) {
+    return { ok: false, error: "Too many sign-up attempts for that email. Try again in 15 minutes." };
+  }
   const existing = await prisma.user.findFirst({
     where: { OR: [{ email }, { username }] },
   });
@@ -189,10 +198,16 @@ export async function registerUser(data: {
   }
 }
 
-export async function requestPasswordReset(email: string): Promise<string> {
+export type ResetRequestResult =
+  | { status: "created"; devCode?: string }
+  | { status: "rate-limited" };
+
+export async function requestPasswordReset(email: string): Promise<ResetRequestResult> {
+  const allowed = await rateLimit(`reset-req:${email.trim().toLowerCase()}`, 3);
+  if (!allowed) return { status: "rate-limited" };
   const normalized = email.trim().toLowerCase();
   const user = await prisma.user.findUnique({ where: { email: normalized } });
-  if (!user) return "reset-needed";
+  if (!user) return { status: "created" };
   const token = randomBytes(6).toString("hex").toUpperCase();
   await prisma.passwordReset.create({
     data: {
@@ -201,18 +216,24 @@ export async function requestPasswordReset(email: string): Promise<string> {
       expiresAt: new Date(Date.now() + 15 * 60 * 1000),
     },
   });
-  return token;
+  const preview =
+    process.env.NODE_ENV !== "production" ||
+    process.env.ALLOW_RESET_CODE_DEBUG === "true";
+  return { status: "created", devCode: preview ? token : undefined };
 }
 
 export async function resetPassword(token: string, newPassword: string): Promise<AuthResult> {
+  const passwordError = validateNewPassword(newPassword);
+  if (passwordError) return { ok: false, error: passwordError };
+  const allowed = await rateLimit(`reset:${token.trim().toUpperCase()}`, 5);
+  if (!allowed) {
+    return { ok: false, error: "Too many attempts with that code. Try again in 15 minutes." };
+  }
   const reset = await prisma.passwordReset.findUnique({ where: { token: token.trim().toUpperCase() } });
   if (!reset || reset.used || reset.expiresAt < new Date()) {
     return { ok: false, error: "That reset code is invalid or has expired." };
   }
   const passwordHash = await hashPassword(newPassword);
-  if (newPassword.length < 6) {
-    return { ok: false, error: "Password must be at least 6 characters." };
-  }
   await prisma.$transaction([
     prisma.user.update({ where: { id: reset.userId }, data: { passwordHash } }),
     prisma.passwordReset.update({ where: { id: reset.id }, data: { used: true } }),

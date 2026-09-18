@@ -6,6 +6,7 @@ import { useActionState } from "react";
 import {
   CalendarDays,
   CalendarRange,
+  CalendarOff,
   Users,
   Eye,
   EyeOff,
@@ -21,7 +22,7 @@ import { PageHeader } from "@/components/layout/page-header";
 
 const initial: ActionResult = { ok: false, error: "" };
 
-type Frequency = "MONTHLY" | "WEEKLY" | "BIWEEKLY" | "TWICE_MONTHLY" | "CUSTOM";
+type Frequency = "MONTHLY" | "WEEKLY" | "BIWEEKLY" | "TWICE_MONTHLY" | "CUSTOM" | "FLEXIBLE";
 
 const frequencies: { value: Frequency; label: string; icon: React.ElementType; hint: string }[] = [
   { value: "MONTHLY", label: "Monthly", icon: CalendarDays, hint: "e.g. every 15th" },
@@ -29,6 +30,7 @@ const frequencies: { value: Frequency; label: string; icon: React.ElementType; h
   { value: "WEEKLY", label: "Weekly", icon: CalendarDays, hint: "e.g. every Friday" },
   { value: "BIWEEKLY", label: "Every 2 Weeks", icon: CalendarRange, hint: "every 14 days" },
   { value: "CUSTOM", label: "Custom", icon: Plus, hint: "pick your own dates" },
+  { value: "FLEXIBLE", label: "Any Day", icon: CalendarOff, hint: "no fixed date — hulog anytime" },
 ];
 
 const visibilityOptions = [
@@ -104,7 +106,7 @@ export function NewChallengeForm() {
         <Card>
           <CardHeader title="Contribution schedule" subtitle="When are collection periods active?" />
           <CardContent className="flex flex-col gap-5">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
               {frequencies.map((f) => {
                 const isChecked = frequency === f.value;
                 const Icon = f.icon;
@@ -201,6 +203,12 @@ export function NewChallengeForm() {
                   rows={3}
                 />
               </Field>
+            )}
+
+            {frequency === "FLEXIBLE" && (
+              <div className="rounded-xl bg-brand-50 px-4 py-3 text-sm font-medium text-brand-800">
+                No fixed collection date — members can hulog on any day of the challenge.
+              </div>
             )}
           </CardContent>
         </Card>

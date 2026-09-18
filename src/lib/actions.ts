@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import {
@@ -54,8 +55,16 @@ function parseDate(value: unknown): Date {
   return d;
 }
 
+function randomPassword(length = 10): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  const bytes = randomBytes(length);
+  let out = "";
+  for (let i = 0; i < length; i++) out += chars[bytes[i] % chars.length];
+  return out;
+}
+
 export type ActionResult =
-  | { ok: true; message?: string }
+  | { ok: true; message?: string; code?: string }
   | { ok: false; error: string };
 
 export async function logoutAction(): Promise<ActionResult> {
@@ -108,13 +117,17 @@ export async function forgotPasswordAction(
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { ok: false, error: "Enter a valid email address." };
   }
-  const token = await requestPasswordReset(email);
+  const res = await requestPasswordReset(email);
+  if (res.status === "rate-limited") {
+    return {
+      ok: false,
+      error: "Too many reset requests for that email. Try again in 15 minutes.",
+    };
+  }
   return {
     ok: true,
-    message:
-      token === "reset-needed"
-        ? "If that account exists, a reset request was created."
-        : token,
+    message: "If an account exists for that email, a reset request was created.",
+    code: res.devCode,
   };
 }
 
@@ -149,8 +162,11 @@ export async function createChallengeAction(
   const startDate = parseDate(formData.get("startDate"));
   const endRaw = formData.get("endDate");
   const endDate = endRaw && String(endRaw).trim() ? parseDate(endRaw) : null;
+  if (endDate && endDate <= startDate) {
+    return { ok: false, error: "End date must be after the start date." };
+  }
   const frequency = String(formData.get("frequency") ?? "") as Frequency;
-  const validity: Frequency[] = ["MONTHLY", "WEEKLY", "BIWEEKLY", "TWICE_MONTHLY", "CUSTOM"];
+  const validity: Frequency[] = ["MONTHLY", "WEEKLY", "BIWEEKLY", "TWICE_MONTHLY", "CUSTOM", "FLEXIBLE"];
   if (!validity.includes(frequency)) {
     return { ok: false, error: "Please pick a contribution schedule." };
   }
@@ -245,12 +261,24 @@ export async function updateChallengeSettingsAction(
     ? (statusRaw as ChallengeStatus)
     : "ACTIVE";
 
+  const endRaw = String(formData.get("endDate") ?? "").trim();
+  let endDate: Date | null = challenge.endDate;
+  if (endRaw) {
+    const parsedEnd = parseDate(endRaw);
+    if (parsedEnd <= challenge.startDate) {
+      return { ok: false, error: "End date must be after the start date." };
+    }
+    endDate = parsedEnd;
+  } else {
+    endDate = null;
+  }
+
   await prisma.challenge.update({
     where: { id: challenge.id },
     data: {
       name,
       description: String(formData.get("description") ?? "").trim() || null,
-      endDate: formData.get("endDate") ? parseDate(formData.get("endDate")) : challenge.endDate,
+      endDate,
       visibility,
       leaderboardEnabled,
       allowMemberHulog,
@@ -272,7 +300,7 @@ export async function updateScheduleAction(
   if (!challenge) return { ok: false, error: "Challenge not found." };
 
   const frequency = String(formData.get("frequency") ?? "") as Frequency;
-  const validity: Frequency[] = ["MONTHLY", "WEEKLY", "BIWEEKLY", "TWICE_MONTHLY", "CUSTOM"];
+  const validity: Frequency[] = ["MONTHLY", "WEEKLY", "BIWEEKLY", "TWICE_MONTHLY", "CUSTOM", "FLEXIBLE"];
   if (!validity.includes(frequency)) return { ok: false, error: "Invalid schedule." };
 
   const dayOfMonth = parseInt(String(formData.get("dayOfMonth") ?? "0"), 10);
@@ -394,6 +422,7 @@ export async function addHulogAction(
     },
   });
 
+  const targetMember = await prisma.user.findUnique({ where: { id: membership.userId }, select: { id: true, name: true } });
   await prisma.activityLog.create({
     data: {
       challengeId: challenge.id,
@@ -401,8 +430,12 @@ export async function addHulogAction(
       type: "hulog",
       message:
         kind === "withdraw"
-          ? `${user.name} recorded a ₱${amount.toLocaleString("en-PH")} withdrawal`
-          : `${user.name} added a ₱${amount.toLocaleString("en-PH")} hulog`,
+          ? `${user.name} recorded a ₱${amount.toLocaleString("en-PH")} withdrawal${
+              targetMember && targetMember.id !== user.id ? ` for ${targetMember.name}` : ""
+            }`
+          : `${user.name} added a ₱${amount.toLocaleString("en-PH")} hulog${
+              targetMember && targetMember.id !== user.id ? ` for ${targetMember.name}` : ""
+            }`,
       metadata: { amount: signedAmount, transactionId: tx.id, status, kind },
     },
   });
@@ -630,23 +663,34 @@ export async function editTransactionAction(
   const date = parseDate(formData.get("date"));
   const schedule = tx.challenge.schedules[0];
   const period = determinePeriod(schedule?.frequency ?? "MONTHLY", date);
+  const signedAmount = tx.amount < 0 ? -amount : amount;
+  const isAdmin = user.role === "ADMIN";
+  const newStatus: TransactionStatus = isAdmin ? "CONFIRMED" : "PENDING";
 
   const updated = await prisma.hulogTransaction.update({
     where: { id: tx.id },
     data: {
-      amount,
+      amount: signedAmount,
       transactionDate: date,
       collectionPeriod: period,
       paymentMethod: parseMethod(formData.get("paymentMethod")),
       note: String(formData.get("note") ?? "").trim() || null,
-      status: user.role === "ADMIN" ? "CONFIRMED" : "PENDING",
+      status: newStatus,
     },
   });
-  if (updated.status === "CONFIRMED" && !updated.confirmedByUserId && user.role === "ADMIN") {
+  if (newStatus === "CONFIRMED" && !updated.confirmedByUserId && isAdmin) {
     await prisma.hulogTransaction.update({
       where: { id: tx.id },
       data: { confirmedByUserId: user.id, confirmedAt: new Date() },
     });
+  }
+  if (!isAdmin) {
+    await createAdminNotification(
+      tx.challenge,
+      user.name,
+      `₱${amount.toLocaleString("en-PH")} hulog awaiting confirmation`,
+      `${user.name} edited a hulog on ${period}.`
+    );
   }
   revalidateAll();
   return { ok: true, message: "Transaction updated." };
@@ -670,6 +714,7 @@ export async function addMembersAction(
 
   let created = 0;
   let errors = 0;
+  const newAccounts: { email: string; password: string }[] = [];
 
   for (const line of names) {
     const parts = line.split(",").map((p) => p.trim());
@@ -692,16 +737,18 @@ export async function addMembersAction(
       const username = existing
         ? `${baseUsername}-${Math.random().toString(36).slice(2, 6)}`
         : baseUsername;
+      const password = randomPassword();
       memberUser = await prisma.user.create({
         data: {
           email,
           username,
           name: memberName,
-          passwordHash: await hashPassword("ipon12345"),
+          passwordHash: await hashPassword(password),
           role: "MEMBER",
           isActive: true,
         },
       });
+      newAccounts.push({ email, password });
     }
     const exists = await prisma.challengeMember.findUnique({
       where: { challengeId_userId: { challengeId: challenge.id, userId: memberUser.id } },
@@ -736,9 +783,15 @@ export async function addMembersAction(
   if (errors > 0 && created === 0) {
     return { ok: false, error: `${errors} invalid email address(es).` };
   }
+  const passwordNote =
+    newAccounts.length > 0
+      ? ` New accounts (sign in with your email): ${newAccounts
+          .map((a) => `${a.email} / ${a.password}`)
+          .join(", ")}`
+      : "";
   return {
     ok: true,
-    message: `${created} member${created === 1 ? "" : "s"} added${errors ? `, ${errors} skipped` : ""}.`,
+    message: `${created} member${created === 1 ? "" : "s"} added${errors ? `, ${errors} skipped` : ""}.${passwordNote}`,
   };
 }
 
@@ -757,6 +810,7 @@ export async function adminAddMembersAction(
 
   let created = 0;
   let errors = 0;
+  const newAccounts: { email: string; password: string }[] = [];
 
   for (const line of names) {
     const parts = line.split(",").map((p) => p.trim());
@@ -779,16 +833,18 @@ export async function adminAddMembersAction(
     while (await prisma.user.findUnique({ where: { username } })) {
       username = `${baseUsername}-${suffix++}`;
     }
+    const password = randomPassword();
     await prisma.user.create({
       data: {
         email,
         username,
         name: memberName,
-        passwordHash: await hashPassword("ipon12345"),
+        passwordHash: await hashPassword(password),
         role: "MEMBER",
         isActive: true,
       },
     });
+    newAccounts.push({ email, password });
     created++;
   }
 
@@ -796,9 +852,15 @@ export async function adminAddMembersAction(
   if (errors > 0 && created === 0) {
     return { ok: false, error: `${errors} invalid or already-registered email address(es).` };
   }
+  const passwordNote =
+    newAccounts.length > 0
+      ? ` Sign in with your email. Temporary passwords: ${newAccounts
+          .map((a) => `${a.email} / ${a.password}`)
+          .join(", ")}`
+      : "";
   return {
     ok: true,
-    message: `${created} member${created === 1 ? "" : "s"} created${errors ? `, ${errors} skipped` : ""}. Default password: ipon12345.`,
+    message: `${created} member${created === 1 ? "" : "s"} created${errors ? `, ${errors} skipped` : ""}.${passwordNote}`,
   };
 }
 
@@ -934,13 +996,15 @@ export async function updateMemberProfileAction(
   const dbUser = await prisma.user.findUnique({ where: { id: memberId } });
   if (!dbUser) return { ok: false, error: "User not found." };
 
-  await prisma.$transaction(async (tx) => {
-    try {
-      await tx.user.update({ where: { id: memberId }, data: { name, email, phone } });
-    } catch {
-      throw new Error("That email is already in use.");
-    }
-  });
+  if (email !== dbUser.email) {
+    const clash = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+    if (clash) return { ok: false, error: "That email is already in use." };
+  }
+
+  await prisma.user.update({ where: { id: memberId }, data: { name, email, phone } });
   revalidateAll();
   return { ok: true, message: "Member updated." };
 }

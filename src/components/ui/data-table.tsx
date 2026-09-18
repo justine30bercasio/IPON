@@ -43,10 +43,6 @@ export function DataTable({
   const safePage = Math.min(page, totalPages);
   const pageRows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
-  React.useEffect(() => {
-    setPage(1);
-  }, [q]);
-
   if (rows.length === 0) {
     return (
       <EmptyState emoji={emptyEmoji} title={emptyTitle} description={emptyDescription} />
@@ -59,7 +55,10 @@ export function DataTable({
         <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft/40" />
         <input
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setPage(1);
+          }}
           placeholder={searchPlaceholder}
           className="h-10 w-full rounded-xl border border-line bg-white pl-9 pr-3 text-sm text-ink shadow-soft outline-none transition-all focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10"
         />

@@ -81,6 +81,8 @@ export function isCollectionDate(schedule: ScheduleRule, date: Date | string): b
       if (custom.length > 0) return custom.includes(dayKey(d));
       return true;
     }
+    case "FLEXIBLE":
+      return true;
     case "CUSTOM":
     default: {
       const custom = parseCustomDates(schedule.customDates);
@@ -137,6 +139,9 @@ export function describeSchedule(schedule: ScheduleRule): string {
   }
   if (schedule.frequency === "BIWEEKLY") {
     return "Every 2 weeks";
+  }
+  if (schedule.frequency === "FLEXIBLE") {
+    return "Any day — no fixed collection date";
   }
   const custom = parseCustomDates(schedule.customDates);
   if (custom.length > 0) {

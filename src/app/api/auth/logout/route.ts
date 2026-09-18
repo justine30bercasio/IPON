@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { clearSessionCookieHeader } from "@/lib/auth";
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   const redirect = NextResponse.json({ ok: true });
   redirect.headers.set("Set-Cookie", await clearSessionCookieHeader());
   return redirect;

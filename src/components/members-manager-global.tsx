@@ -77,10 +77,6 @@ export function MembersManager({
   const safePage = Math.min(page, totalPages);
   const pageRows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  React.useEffect(() => {
-    setPage(1);
-  }, [q]);
-
   const saveProfile = async () => {
     if (!editing) return;
     const fd = new FormData();
@@ -164,7 +160,10 @@ export function MembersManager({
           <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft/40" />
           <Input
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setPage(1);
+            }}
             placeholder="Search by name or email…"
             className="pl-10"
           />
@@ -496,7 +495,7 @@ function AddMembersModal({ open, onClose }: { open: boolean; onClose: () => void
       open={open}
       onClose={onClose}
       title="Add member"
-      description="One per line: email, Full Name. New accounts get the default password ipon12345, which you can reset right after."
+      description="One per line: email, Full Name. New accounts get a unique temporary password shown after adding."
       size="md"
     >
       <form action={save} className="flex flex-col gap-4">

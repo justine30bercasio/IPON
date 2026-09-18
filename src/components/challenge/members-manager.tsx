@@ -83,10 +83,6 @@ export function MembersManager({
   const safePage = Math.min(memberPage, totalPages);
   const pageRows = sorted.slice((safePage - 1) * MEMBER_PAGE_SIZE, safePage * MEMBER_PAGE_SIZE);
 
-  React.useEffect(() => {
-    setMemberPage(1);
-  }, [search]);
-
   const run = async (fn: () => Promise<ActionResult>, success: string) => {
     setBusy(true);
     const res = await fn();
@@ -107,7 +103,10 @@ export function MembersManager({
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft/40" />
           <input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setMemberPage(1);
+            }}
             placeholder="Search members…"
             className="h-10 w-full rounded-xl border border-line bg-white pl-9 pr-3 text-sm text-ink shadow-soft outline-none transition-all focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10"
           />
@@ -460,7 +459,7 @@ function AddMembersModal({
       open={open}
       onClose={onClose}
       title="Add members"
-      description="One per line: email, Full Name. New members get the default password ipon12345."
+      description="One per line: email, Full Name. New members get a unique temporary password shown after adding."
       size="md"
     >
       <form action={save} className="flex flex-col gap-4">

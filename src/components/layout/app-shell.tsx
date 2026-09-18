@@ -3,7 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Trophy,
@@ -56,6 +56,7 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [hulogOpen, setHulogOpen] = React.useState(false);
 
   const nav = user.role === "ADMIN" ? deskNav : deskNav;
@@ -133,7 +134,7 @@ export function AppShell({
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold text-ink">{user.name}</p>
               <p className="text-xs capitalize text-ink-soft/70">
-                {user.role === "ADMIN" ? "Organizer" : "Member"}
+                {user.role === "ADMIN" ? "Administrator" : "Member"}
               </p>
             </div>
             <button
@@ -144,7 +145,7 @@ export function AppShell({
                 } catch {
                   /* ignore */
                 }
-                window.location.href = "/login?loggedOut=1";
+                router.push("/login?loggedOut=1");
               }}
               className="flex h-9 w-9 items-center justify-center rounded-full text-ink-soft/60 transition-colors hover:bg-mist hover:text-ink"
               aria-label="Sign out"
@@ -152,6 +153,9 @@ export function AppShell({
               <LogOut className="h-4 w-4" />
             </button>
           </div>
+          <p className="mt-3 border-t border-line/60 pt-3 text-center text-[11px] font-medium text-ink-soft/50">
+            Developed by Justine Bercasio · Founder of CodeCraft Solution
+          </p>
         </div>
       </aside>
 

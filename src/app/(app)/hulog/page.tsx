@@ -66,9 +66,10 @@ export default async function HulogHistoryPage() {
     memberUserId: isAdmin ? t.member.userId : user.id,
   }));
 
-  const total = txs.reduce((s, t) => s + t.amount, 0);
+  const confirmed = txs.filter((t) => t.status === "CONFIRMED");
+  const total = confirmed.reduce((s, t) => s + t.amount, 0);
   const byChallenge = new Map<string, number>();
-  for (const t of txs) {
+  for (const t of confirmed) {
     byChallenge.set(t.challengeId, (byChallenge.get(t.challengeId) ?? 0) + t.amount);
   }
   const bestChallenge = [...byChallenge.entries()].sort((a, b) => b[1] - a[1])[0];
