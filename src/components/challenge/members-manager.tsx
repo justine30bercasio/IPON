@@ -589,7 +589,7 @@ function ResetPasswordModal({
       size="sm"
     >
       <div className="flex flex-col gap-3.5">
-        <Field label="New password" hint="At least 6 characters. Share it with the member.">
+        <Field label="New password" hint="At least 8 characters with uppercase, lowercase, and a number. They'll be asked to change it on next sign-in.">
           <div className="relative">
             <Input
               type={showPw ? "text" : "password"}

@@ -7,6 +7,7 @@ import { Prisma } from "@prisma/client";
 import {
   requireUser,
   destroySession,
+  createSession,
   hashPassword,
   validateNewPassword,
   loginUser,
@@ -15,9 +16,11 @@ import {
   resetPassword,
   requireAdmin,
   isOrgAdmin,
+  shouldBeSuperAdmin,
 } from "@/lib/auth";
 import type { SessionUser } from "@/lib/auth";
 import { determinePeriod } from "@/lib/period";
+import { toCents, formatCents } from "@/lib/money";
 import type {
   PaymentMethod,
   Frequency,
@@ -42,9 +45,27 @@ function parseMethod(value: unknown): PaymentMethod {
 }
 
 function quantizeAmount(value: unknown): number | null {
-  const n = typeof value === "number" ? value : parseFloat(String(value));
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return Math.round(n * 100) / 100;
+  return toCents(value);
+}
+
+async function writeLog(opts: {
+  orgId?: string | null;
+  challengeId?: string | null;
+  userId?: string | null;
+  type: string;
+  message: string;
+  metadata?: Prisma.InputJsonValue | undefined;
+}): Promise<void> {
+  await prisma.activityLog.create({
+    data: {
+      orgId: opts.orgId ?? null,
+      challengeId: opts.challengeId ?? null,
+      userId: opts.userId ?? null,
+      type: opts.type,
+      message: opts.message,
+      metadata: opts.metadata ?? Prisma.JsonNull,
+    },
+  });
 }
 
 function parseCustomDatesRaw(value: string): string[] {
@@ -242,13 +263,12 @@ export async function createChallengeAction(
   await prisma.challengeMember.create({
     data: { challengeId: challenge.id, userId: user.id, isAdmin: true },
   });
-  await prisma.activityLog.create({
-    data: {
-      challengeId: challenge.id,
-      userId: user.id,
-      type: "challenge",
-      message: `${user.name} created the challenge`,
-    },
+  await writeLog({
+    orgId: challenge.orgId,
+    challengeId: challenge.id,
+    userId: user.id,
+    type: "challenge",
+    message: `${user.name} created the challenge`,
   });
 
   revalidateAll();
@@ -421,6 +441,25 @@ export async function addHulogAction(
     return { ok: false, error: "Your membership is inactive." };
   }
 
+  const recent = await prisma.hulogTransaction.findFirst({
+    where: {
+      memberId: membership.id,
+      amount: signedAmount,
+      status: { not: "VOIDED" },
+      createdAt: { gte: new Date(Date.now() - 10 * 60 * 1000) },
+    },
+    select: { id: true },
+  });
+  if (recent) {
+    return {
+      ok: false,
+      error:
+        kind === "withdraw"
+          ? `A withdrawal of ${formatCents(amount)} was just recorded. Refresh the list first if it didn't show up, or record a different amount.`
+          : `A hulog of ${formatCents(amount)} was just recorded. Refresh the list first if it didn't show up, or record a different amount.`,
+    };
+  }
+
   const date = parseDate(formData.get("date"));
   const schedule = challenge.schedules[0];
   const period = determinePeriod(schedule?.frequency ?? "MONTHLY", date);
@@ -443,21 +482,20 @@ export async function addHulogAction(
   });
 
   const targetMember = await prisma.user.findUnique({ where: { id: membership.userId }, select: { id: true, name: true } });
-  await prisma.activityLog.create({
-    data: {
-      challengeId: challenge.id,
-      userId: user.id,
-      type: "hulog",
-      message:
-        kind === "withdraw"
-          ? `${user.name} recorded a ₱${amount.toLocaleString("en-PH")} withdrawal${
-              targetMember && targetMember.id !== user.id ? ` for ${targetMember.name}` : ""
-            }`
-          : `${user.name} added a ₱${amount.toLocaleString("en-PH")} hulog${
-              targetMember && targetMember.id !== user.id ? ` for ${targetMember.name}` : ""
-            }`,
-      metadata: { amount: signedAmount, transactionId: tx.id, status, kind },
-    },
+  await writeLog({
+    orgId: challenge.orgId,
+    challengeId: challenge.id,
+    userId: user.id,
+    type: kind === "withdraw" ? "hulog_withdraw" : "hulog",
+    message:
+      kind === "withdraw"
+        ? `${user.name} recorded a ${formatCents(amount)} withdrawal${
+            targetMember && targetMember.id !== user.id ? ` for ${targetMember.name}` : ""
+          }`
+        : `${user.name} added a ${formatCents(amount)} hulog${
+            targetMember && targetMember.id !== user.id ? ` for ${targetMember.name}` : ""
+          }`,
+    metadata: { amount: signedAmount, transactionId: tx.id, status, kind },
   });
 
   if (isAdmin) {
@@ -468,8 +506,8 @@ export async function addHulogAction(
         type: "success",
         title:
           kind === "withdraw"
-            ? `Your ₱${amount.toLocaleString("en-PH")} withdrawal was confirmed`
-            : `Your ₱${amount.toLocaleString("en-PH")} hulog was confirmed`,
+            ? `Your ${formatCents(amount)} withdrawal was confirmed`
+            : `Your ${formatCents(amount)} hulog was confirmed`,
         body:
           kind === "withdraw"
             ? `${user.name} recorded your withdrawal for ${period}.`
@@ -483,7 +521,7 @@ export async function addHulogAction(
         userId: user.id,
         challengeId: challenge.id,
         type: "hulog",
-        title: `Your ₱${amount.toLocaleString("en-PH")} hulog was recorded`,
+        title: `Your ${formatCents(amount)} hulog was recorded`,
         body: `Submitted for ${period}. It will be counted once the organizer confirms it.`,
         link: "/hulog",
       },
@@ -491,7 +529,7 @@ export async function addHulogAction(
     await createAdminNotification(
       challenge,
       user.name,
-      `₱${amount.toLocaleString("en-PH")} hulog awaiting confirmation`,
+      `${formatCents(amount)} hulog awaiting confirmation`,
       `${user.name} added a hulog on ${period}.`
     );
   }
@@ -552,21 +590,20 @@ export async function recordHulogForMemberAction(
   });
 
   const memberUser = await prisma.user.findUnique({ where: { id: membership.userId } });
-  await prisma.activityLog.create({
-    data: {
-      challengeId: challenge.id,
-      userId: user.id,
-      type: "hulog",
-      message:
-        kind === "withdraw"
-          ? `${user.name} recorded a ₱${amount.toLocaleString("en-PH")} withdrawal${
-              memberUser && memberUser.id !== user.id ? ` for ${memberUser.name}` : ""
-            }`
-          : `${user.name} recorded a ₱${amount.toLocaleString("en-PH")} hulog${
-              memberUser && memberUser.id !== user.id ? ` for ${memberUser.name}` : ""
-            }`,
-      metadata: { amount: signedAmount, transactionId: tx.id, kind },
-    },
+  await writeLog({
+    orgId: challenge.orgId,
+    challengeId: challenge.id,
+    userId: user.id,
+    type: kind === "withdraw" ? "hulog_withdraw" : "hulog",
+    message:
+      kind === "withdraw"
+        ? `${user.name} recorded a ${formatCents(amount)} withdrawal${
+            memberUser && memberUser.id !== user.id ? ` for ${memberUser.name}` : ""
+          }`
+        : `${user.name} recorded a ${formatCents(amount)} hulog${
+            memberUser && memberUser.id !== user.id ? ` for ${memberUser.name}` : ""
+          }`,
+    metadata: { amount: signedAmount, transactionId: tx.id, kind },
   });
   if (memberUser && memberUser.id !== user.id) {
     await prisma.notification.create({
@@ -576,8 +613,8 @@ export async function recordHulogForMemberAction(
         type: "success",
         title:
           kind === "withdraw"
-            ? `Your ₱${amount.toLocaleString("en-PH")} withdrawal was confirmed`
-            : `Your ₱${amount.toLocaleString("en-PH")} hulog was confirmed`,
+            ? `Your ${formatCents(amount)} withdrawal was confirmed`
+            : `Your ${formatCents(amount)} hulog was confirmed`,
         body:
           kind === "withdraw"
             ? `${user.name} recorded your withdrawal for ${period}.`
@@ -603,9 +640,12 @@ export async function confirmTransactionAction(
   });
   if (!tx) return { ok: false, error: "Transaction not found." };
   if (!hasOrgAccess(user, tx.challenge.orgId)) return { ok: false, error: "Not authorized." };
+  if (tx.status !== "PENDING") {
+    return { ok: false, error: "Only pending hulog entries can be confirmed." };
+  }
 
-  await prisma.hulogTransaction.update({
-    where: { id: tx.id },
+  await prisma.hulogTransaction.updateMany({
+    where: { id: tx.id, status: "PENDING" },
     data: {
       status: "CONFIRMED",
       confirmedByUserId: user.id,
@@ -619,12 +659,20 @@ export async function confirmTransactionAction(
         userId: memberUser.id,
         challengeId: tx.challengeId,
         type: "success",
-        title: `Your ₱${tx.amount.toLocaleString("en-PH")} hulog was confirmed`,
+        title: `Your ${formatCents(Math.abs(tx.amount))} hulog was confirmed`,
         body: `Confirmed by ${user.name} for ${tx.collectionPeriod}.`,
         link: "/hulog",
       },
     });
   }
+  await writeLog({
+    orgId: tx.challenge.orgId,
+    challengeId: tx.challengeId,
+    userId: user.id,
+    type: "hulog_confirmed",
+    message: `${user.name} confirmed a ${formatCents(Math.abs(tx.amount))} hulog for ${tx.collectionPeriod}`,
+    metadata: { transactionId: tx.id, memberId: tx.memberId },
+  });
   revalidateAll();
   return { ok: true, message: "Hulog confirmed." };
 }
@@ -646,10 +694,17 @@ export async function voidTransactionAction(
   if (!challenge || !hasOrgAccess(user, challenge.orgId)) {
     return { ok: false, error: "Not authorized." };
   }
+  if (tx.status === "VOIDED") {
+    return { ok: false, error: "This entry is already voided." };
+  }
 
   await prisma.hulogTransaction.update({
     where: { id: tx.id },
-    data: { status: "VOIDED", confirmedByUserId: user.id, confirmedAt: new Date() },
+    data: {
+      status: "VOIDED",
+      voidedByUserId: user.id,
+      voidedAt: new Date(),
+    },
   });
   if (tx.member.userId !== user.id) {
     await prisma.notification.create({
@@ -657,12 +712,20 @@ export async function voidTransactionAction(
         userId: tx.member.userId,
         challengeId: tx.challengeId,
         type: "hulog",
-        title: `Your ₱${Math.abs(tx.amount).toLocaleString("en-PH")} hulog was voided`,
+        title: `Your ${formatCents(Math.abs(tx.amount))} hulog was voided`,
         body: `Voided by ${user.name}. This entry no longer counts toward your total.`,
         link: "/hulog",
       },
     });
   }
+  await writeLog({
+    orgId: challenge.orgId,
+    challengeId: tx.challengeId,
+    userId: user.id,
+    type: "hulog_voided",
+    message: `${user.name} voided a ${formatCents(Math.abs(tx.amount))} transaction`,
+    metadata: { transactionId: tx.id, memberId: tx.member.userId },
+  });
   revalidateAll();
   return { ok: true, message: "Transaction voided." };
 }
@@ -691,13 +754,18 @@ export async function editTransactionAction(
     return { ok: false, error: "You can only edit your own transactions." };
   }
   if (tx.status === "VOIDED") return { ok: false, error: "Voided transactions can't be edited." };
+  if (!isOrgAdmin(user) && tx.status === "CONFIRMED") {
+    return {
+      ok: false,
+      error: "Confirmed hulog can only be adjusted by an organizer. Ask your organizer to fix it.",
+    };
+  }
 
   const date = parseDate(formData.get("date"));
   const schedule = tx.challenge.schedules[0];
   const period = determinePeriod(schedule?.frequency ?? "MONTHLY", date);
   const signedAmount = tx.amount < 0 ? -amount : amount;
-  const isAdmin = isOrgAdmin(user);
-  const newStatus: TransactionStatus = isAdmin ? "CONFIRMED" : "PENDING";
+  const newStatus: TransactionStatus = isOrgAdmin(user) ? "CONFIRMED" : "PENDING";
 
   const updated = await prisma.hulogTransaction.update({
     where: { id: tx.id },
@@ -708,22 +776,32 @@ export async function editTransactionAction(
       paymentMethod: parseMethod(formData.get("paymentMethod")),
       note: String(formData.get("note") ?? "").trim() || null,
       status: newStatus,
+      confirmedByUserId: newStatus === "PENDING" ? null : undefined,
+      confirmedAt: newStatus === "PENDING" ? null : undefined,
     },
   });
-  if (newStatus === "CONFIRMED" && !updated.confirmedByUserId && isAdmin) {
+  if (newStatus === "CONFIRMED" && !updated.confirmedByUserId && isOrgAdmin(user)) {
     await prisma.hulogTransaction.update({
       where: { id: tx.id },
       data: { confirmedByUserId: user.id, confirmedAt: new Date() },
     });
   }
-  if (!isAdmin) {
+  if (!isOrgAdmin(user)) {
     await createAdminNotification(
       tx.challenge,
       user.name,
-      `₱${amount.toLocaleString("en-PH")} hulog awaiting confirmation`,
+      `${formatCents(amount)} hulog awaiting confirmation`,
       `${user.name} edited a hulog on ${period}.`
     );
   }
+  await writeLog({
+    orgId: tx.challenge.orgId,
+    challengeId: tx.challengeId,
+    userId: user.id,
+    type: "hulog_edited",
+    message: `${user.name} updated a ${formatCents(amount)} hulog entry to status ${newStatus.toLowerCase()}`,
+    metadata: { transactionId: tx.id, previousStatus: tx.status, amount: signedAmount },
+  });
   revalidateAll();
   return { ok: true, message: "Transaction updated." };
 }
@@ -783,6 +861,7 @@ export async function addMembersAction(
           role: "MEMBER",
           isActive: true,
           orgId: challenge.orgId,
+          mustChangePassword: true,
         },
       });
       newAccounts.push({ email, password });
@@ -804,13 +883,12 @@ export async function addMembersAction(
           link: `/challenges/${challenge.id}`,
         },
       });
-      await prisma.activityLog.create({
-        data: {
-          challengeId: challenge.id,
-          userId: user.id,
-          type: "member",
-          message: `${memberUser.name} joined the challenge`,
-        },
+      await writeLog({
+        orgId: challenge.orgId,
+        challengeId: challenge.id,
+        userId: user.id,
+        type: "member",
+        message: `${memberUser.name} joined the challenge`,
       });
       created++;
     }
@@ -883,11 +961,20 @@ export async function adminAddMembersAction(
         role: "MEMBER",
         isActive: true,
         orgId: targetOrgId,
+        mustChangePassword: true,
       },
     });
     newAccounts.push({ email, password });
     created++;
   }
+
+  await writeLog({
+    orgId: targetOrgId,
+    userId: user.id,
+    type: "member",
+    message: `${user.name} created ${created} member account(s)`,
+    metadata: { created },
+  });
 
   revalidateAll();
   if (errors > 0 && created === 0) {
@@ -959,11 +1046,20 @@ export async function adminAddOrgMembersAction(
         role: "MEMBER",
         isActive: true,
         orgId: org.id,
+        mustChangePassword: true,
       },
     });
     newAccounts.push({ email, password });
     created++;
   }
+
+  await writeLog({
+    orgId: org.id,
+    userId: user.id,
+    type: "member",
+    message: `${user.name} created ${created} member account(s) in ${org.name}`,
+    metadata: { created },
+  });
 
   revalidateAll();
   if (errors > 0 && created === 0) {
@@ -1056,13 +1152,12 @@ export async function createOrgChallengeAction(
     },
   });
 
-  await prisma.activityLog.create({
-    data: {
-      challengeId: challenge.id,
-      userId: user.id,
-      type: "challenge",
-      message: `Super admin created challenge "${challenge.name}" in ${org.name}`,
-    },
+  await writeLog({
+    orgId: org.id,
+    challengeId: challenge.id,
+    userId: user.id,
+    type: "challenge",
+    message: `Super admin created challenge "${challenge.name}" in ${org.name}`,
   });
 
   revalidateAll();
@@ -1073,7 +1168,10 @@ export async function toggleMemberStatusAction(
   memberId: string
 ): Promise<ActionResult> {
   const user = await requireUser();
-  const member = await prisma.challengeMember.findUnique({ where: { id: memberId } });
+  const member = await prisma.challengeMember.findUnique({
+    where: { id: memberId },
+    include: { user: { select: { name: true } } },
+  });
   if (!member) return { ok: false, error: "Member not found." };
   const challenge = await getOrCreateChallengeForAdmin(user, member.challengeId);
   if (!challenge) return { ok: false, error: "Not authorized." };
@@ -1083,6 +1181,13 @@ export async function toggleMemberStatusAction(
   await prisma.challengeMember.update({
     where: { id: member.id },
     data: { status: newStatus },
+  });
+  await writeLog({
+    orgId: challenge.orgId,
+    challengeId: challenge.id,
+    userId: user.id,
+    type: "member_status",
+    message: `${user.name} ${newStatus === "ACTIVE" ? "reactivated" : "deactivated"} ${member.user?.name ?? "a member"}`,
   });
   revalidateAll();
   return {
@@ -1102,15 +1207,23 @@ export async function removeMemberAction(memberId: string): Promise<ActionResult
   if (!challenge) return { ok: false, error: "Not authorized." };
   if (member.isAdmin) return { ok: false, error: "The organizer can't be removed." };
 
-  await prisma.hulogTransaction.deleteMany({ where: { memberId: member.id } });
+  const txCount = await prisma.hulogTransaction.count({
+    where: { memberId: member.id },
+  });
+  if (txCount > 0) {
+    return {
+      ok: false,
+      error: `${member.user.name} has ${txCount} recorded hulog entr${txCount === 1 ? "y" : "ies"}. Deactivate the member instead so their savings history is kept.`,
+    };
+  }
+
   await prisma.challengeMember.delete({ where: { id: member.id } });
-  await prisma.activityLog.create({
-    data: {
-      challengeId: challenge.id,
-      userId: user.id,
-      type: "member",
-      message: `${member.user.name} was removed from the challenge`,
-    },
+  await writeLog({
+    orgId: challenge.orgId,
+    challengeId: challenge.id,
+    userId: user.id,
+    type: "member_removed",
+    message: `${member.user.name} was removed from the challenge`,
   });
   revalidateAll();
   return { ok: true, message: `${member.user.name} removed from the challenge.` };
@@ -1161,11 +1274,16 @@ export async function changePasswordAction(
   if (check) return { ok: false, error: check };
   if (next !== confirm) return { ok: false, error: "Passwords don't match." };
 
-  await prisma.user.update({
+  const updated = await prisma.user.update({
     where: { id: user.id },
-    data: { passwordHash: await hashPassword(next) },
+    data: {
+      passwordHash: await hashPassword(next),
+      sessionVersion: { increment: 1 },
+      mustChangePassword: false,
+    },
   });
-  return { ok: true, message: "Password updated." };
+  await createSession(user.id, true, updated.sessionVersion);
+  return { ok: true, message: "Password updated. Other devices were signed out." };
 }
 
 export async function resetUserPasswordAction(
@@ -1177,14 +1295,36 @@ export async function resetUserPasswordAction(
   if (!isOrgAdmin(user)) return { ok: false, error: "Admin access required." };
   const dbUser = await prisma.user.findUnique({ where: { id: memberId } });
   if (!dbUser) return { ok: false, error: "User not found." };
+  if (dbUser.role === "SUPER_ADMIN") {
+    return {
+      ok: false,
+      error: "Super admin accounts are managed by the platform owner.",
+    };
+  }
   if (!hasOrgAccess(user, dbUser.orgId)) return { ok: false, error: "Not authorized." };
   const password = String(formData.get("password") ?? "");
-  if (password.length < 6) return { ok: false, error: "Password must be at least 6 characters." };
+  const pwError = validateNewPassword(password);
+  if (pwError) return { ok: false, error: pwError };
   await prisma.user.update({
     where: { id: memberId },
-    data: { passwordHash: await hashPassword(password) },
+    data: {
+      passwordHash: await hashPassword(password),
+      sessionVersion: { increment: 1 },
+      mustChangePassword: true,
+    },
   });
-  return { ok: true, message: `Password reset for ${dbUser.name}.` };
+  await writeLog({
+    orgId: dbUser.orgId,
+    userId: user.id,
+    type: "user_password_reset",
+    message: `${user.name} reset the password for ${dbUser.name}`,
+    metadata: { targetUserId: memberId },
+  });
+  revalidateAll();
+  return {
+    ok: true,
+    message: `Password reset for ${dbUser.name}. They'll be asked to set a new one on their next sign-in.`,
+  };
 }
 
 export async function updateMemberProfileAction(
@@ -1201,7 +1341,16 @@ export async function updateMemberProfileAction(
   const phone = String(formData.get("phone") ?? "").trim() || null;
   const dbUser = await prisma.user.findUnique({ where: { id: memberId } });
   if (!dbUser) return { ok: false, error: "User not found." };
+  if (dbUser.role === "SUPER_ADMIN") {
+    return {
+      ok: false,
+      error: "Super admin accounts are managed by the platform owner.",
+    };
+  }
   if (!hasOrgAccess(user, dbUser.orgId)) return { ok: false, error: "Not authorized." };
+  if (shouldBeSuperAdmin({ email })) {
+    return { ok: false, error: "That email is reserved for the platform owner." };
+  }
 
   if (email !== dbUser.email) {
     const clash = await prisma.user.findUnique({
@@ -1212,6 +1361,13 @@ export async function updateMemberProfileAction(
   }
 
   await prisma.user.update({ where: { id: memberId }, data: { name, email, phone } });
+  await writeLog({
+    orgId: dbUser.orgId,
+    userId: user.id,
+    type: "user_profile",
+    message: `${user.name} updated the profile of ${dbUser.name}`,
+    metadata: { targetUserId: memberId },
+  });
   revalidateAll();
   return { ok: true, message: "Member updated." };
 }
@@ -1244,7 +1400,17 @@ export async function toggleUserRoleAction(userId: string): Promise<ActionResult
     return { ok: false, error: "Super admin roles are managed by the platform owner." };
   }
   const next: "ADMIN" | "MEMBER" = target.role === "ADMIN" ? "MEMBER" : "ADMIN";
-  await prisma.user.update({ where: { id: userId }, data: { role: next } });
+  await prisma.user.update({
+    where: { id: userId },
+    data: { role: next, sessionVersion: { increment: 1 } },
+  });
+  await writeLog({
+    orgId: target.orgId,
+    userId: user.id,
+    type: "user_role",
+    message: `${user.name} changed ${target.name}'s role to ${next}`,
+    metadata: { targetUserId: userId, previousRole: target.role },
+  });
   revalidateAll();
   return {
     ok: true,
@@ -1265,7 +1431,17 @@ export async function toggleUserActiveAction(userId: string): Promise<ActionResu
     return { ok: false, error: "Super admin accounts cannot be deactivated." };
   }
   const next = !target.isActive;
-  await prisma.user.update({ where: { id: userId }, data: { isActive: next } });
+  await prisma.user.update({
+    where: { id: userId },
+    data: { isActive: next, sessionVersion: { increment: 1 } },
+  });
+  await writeLog({
+    orgId: target.orgId,
+    userId: user.id,
+    type: "user_active",
+    message: `${user.name} ${next ? "reactivated" : "deactivated"} ${target.name}`,
+    metadata: { targetUserId: userId },
+  });
   revalidateAll();
   return {
     ok: true,
@@ -1293,6 +1469,22 @@ export async function deleteUserAction(userId: string): Promise<ActionResult> {
     };
   }
 
+  const memberRows = await prisma.challengeMember.findMany({
+    where: { userId },
+    select: { id: true },
+  });
+  const memberIds = memberRows.map((m) => m.id);
+  const txCount =
+    memberIds.length > 0
+      ? await prisma.hulogTransaction.count({ where: { memberId: { in: memberIds } } })
+      : 0;
+  if (txCount > 0) {
+    return {
+      ok: false,
+      error: `${target.name} has ${txCount} recorded savings entr${txCount === 1 ? "y" : "ies"} across challenges. Deactivate their account instead so the shared records stay intact.`,
+    };
+  }
+
   await prisma.$transaction([
     prisma.challengeMember.deleteMany({ where: { userId } }),
     prisma.notification.deleteMany({ where: { userId } }),
@@ -1300,6 +1492,13 @@ export async function deleteUserAction(userId: string): Promise<ActionResult> {
     prisma.passwordReset.deleteMany({ where: { userId } }),
     prisma.user.delete({ where: { id: userId } }),
   ]);
+  await writeLog({
+    orgId: target.orgId,
+    userId: user.id,
+    type: "user_delete",
+    message: `${user.name} permanently deleted ${target.name}'s account`,
+    metadata: { targetUserId: userId },
+  });
   revalidateAll();
   return { ok: true, message: `${target.name} was deleted permanently.` };
 }
@@ -1323,8 +1522,15 @@ export async function createOrganizationAction(
   if (await prisma.organization.findUnique({ where: { slug } })) {
     return { ok: false, error: "That slug is already taken." };
   }
-  await prisma.organization.create({
+  const org = await prisma.organization.create({
     data: { name, slug },
+  });
+  await writeLog({
+    orgId: org.id,
+    userId: user.id,
+    type: "org_create",
+    message: `${user.name} created organization “${name}”`,
+    metadata: { slug },
   });
   revalidateAll();
   return { ok: true, message: `Organization “${name}” created.` };
@@ -1344,6 +1550,12 @@ export async function renameOrganizationAction(
   const name = String(formData.get("name") ?? "").trim();
   if (name.length < 3) return { ok: false, error: "Organization name must be at least 3 characters." };
   await prisma.organization.update({ where: { id: org.id }, data: { name } });
+  await writeLog({
+    orgId: org.id,
+    userId: user.id,
+    type: "org_rename",
+    message: `${user.name} renamed organization “${org.name}” to “${name}”`,
+  });
   revalidateAll();
   return { ok: true, message: "Organization renamed." };
 }
@@ -1395,6 +1607,13 @@ export async function createOrgAdminAction(
       isActive: true,
       orgId: org.id,
     },
+  });
+  await writeLog({
+    orgId: org.id,
+    userId: user.id,
+    type: "user_role",
+    message: `${user.name} created org admin ${name} for ${org.name}`,
+    metadata: { email },
   });
   revalidateAll();
   return {

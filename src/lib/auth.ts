@@ -7,15 +7,22 @@ import { rateLimit } from "@/lib/rate-limit";
 import type { User } from "@prisma/client";
 
 const COOKIE_NAME = "ipon_session";
-const devSecret = process.env.AUTH_SECRET ?? "ipon-challenge-local-secret";
-if (process.env.NODE_ENV === "production" && !process.env.AUTH_SECRET) {
-  throw new Error("AUTH_SECRET must be set in production.");
+const SESSION_ISSUER = "ipon";
+const SESSION_AUDIENCE = "ipon-session";
+
+const devFallback =
+  process.env.NODE_ENV === "development" ? "ipon-challenge-local-secret" : "";
+const authSecret = process.env.AUTH_SECRET || devFallback;
+if (!authSecret) {
+  throw new Error(
+    "AUTH_SECRET must be set (generate with: openssl rand -base64 32)."
+  );
 }
-const secret = new TextEncoder().encode(devSecret);
+const secret = new TextEncoder().encode(authSecret);
 
 export type SessionUser = Pick<
   User,
-  "id" | "email" | "username" | "name" | "role" | "isActive" | "orgId"
+  "id" | "email" | "username" | "name" | "role" | "isActive" | "orgId" | "mustChangePassword"
 >;
 
 export const isOrgAdmin = (u: { role: string }): boolean =>
@@ -35,18 +42,19 @@ interface SessionUserSource {
   role: string;
   isActive: boolean;
   orgId: string;
+  mustChangePassword: boolean;
 }
 
 export function toSessionUser(u: SessionUserSource): SessionUser {
-  const role = shouldBeSuperAdmin(u) ? "SUPER_ADMIN" : u.role;
   return {
     id: u.id,
     email: u.email,
     username: u.username,
     name: u.name,
-    role: role as SessionUser["role"],
+    role: u.role as SessionUser["role"],
     isActive: u.isActive,
     orgId: u.orgId,
+    mustChangePassword: u.mustChangePassword,
   };
 }
 
@@ -72,6 +80,8 @@ export async function ensureRole(
 export async function encrypt(payload: Record<string, unknown>): Promise<string> {
   return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
+    .setIssuer(SESSION_ISSUER)
+    .setAudience(SESSION_AUDIENCE)
     .setIssuedAt()
     .setExpirationTime("30d")
     .sign(secret);
@@ -79,7 +89,10 @@ export async function encrypt(payload: Record<string, unknown>): Promise<string>
 
 export async function decrypt(token: string): Promise<Record<string, unknown> | null> {
   try {
-    const { payload } = await jwtVerify(token, secret);
+    const { payload } = await jwtVerify(token, secret, {
+      issuer: SESSION_ISSUER,
+      audience: SESSION_AUDIENCE,
+    });
     return payload as Record<string, unknown>;
   } catch {
     return null;
@@ -88,9 +101,10 @@ export async function decrypt(token: string): Promise<Record<string, unknown> | 
 
 export async function createSession(
   userId: string,
-  remember: boolean = true
+  remember: boolean = true,
+  sessionVersion: number = 0
 ): Promise<void> {
-  const token = await encrypt({ userId });
+  const token = await encrypt({ userId, sessionVersion });
   const maxAge = remember ? 60 * 60 * 24 * 30 : 60 * 60 * 24 * 7;
   const store = await cookies();
   store.set(COOKIE_NAME, token, {
@@ -104,9 +118,10 @@ export async function createSession(
 
 export async function sessionCookieHeader(
   userId: string,
-  remember: boolean = true
+  remember: boolean = true,
+  sessionVersion: number = 0
 ): Promise<string> {
-  const token = await encrypt({ userId });
+  const token = await encrypt({ userId, sessionVersion });
   const maxAge = remember ? 60 * 60 * 24 * 30 : 60 * 60 * 24 * 7;
   const secure = process.env.NODE_ENV === "production";
   const expires = new Date(Date.now() + maxAge * 1000).toUTCString();
@@ -128,6 +143,12 @@ export async function getSession(): Promise<SessionUser | null> {
   if (!token) return null;
   const payload = await decrypt(token);
   if (!payload?.userId || typeof payload.userId !== "string") return null;
+  if (
+    typeof payload.sessionVersion !== "number" ||
+    payload.sessionVersion < 0
+  ) {
+    return null;
+  }
   const user = await prisma.user.findUnique({
     where: { id: payload.userId },
     select: {
@@ -138,10 +159,12 @@ export async function getSession(): Promise<SessionUser | null> {
       role: true,
       isActive: true,
       orgId: true,
+      sessionVersion: true,
+      mustChangePassword: true,
     },
   });
   if (!user || !user.isActive) return null;
-  if (shouldBeSuperAdmin(user)) user.role = "SUPER_ADMIN";
+  if (user.sessionVersion !== payload.sessionVersion) return null;
   return user;
 }
 
@@ -160,7 +183,15 @@ export async function requireAdmin(): Promise<SessionUser> {
 export class AuthError extends Error {}
 
 export function validateNewPassword(password: string): string | null {
-  if (password.length < 6) return "Password must be at least 6 characters.";
+  if (password.length < 8) {
+    return "Password must be at least 8 characters.";
+  }
+  if (!/[A-Z]/.test(password) || !/[a-z]/.test(password)) {
+    return "Password must contain both uppercase and lowercase letters.";
+  }
+  if (!/[0-9]/.test(password)) {
+    return "Password must contain at least one number.";
+  }
   return null;
 }
 
@@ -181,7 +212,7 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 }
 
 export type AuthResult =
-  | { ok: true; user: SessionUser }
+  | { ok: true; user: SessionUser; sessionVersion?: number }
   | { ok: false; error: string };
 
 export async function loginUser(
@@ -200,12 +231,13 @@ export async function loginUser(
     },
   });
   if (!user) return { ok: false, error: "Invalid email/username or password." };
-  if (!user.isActive) return { ok: false, error: "This account has been deactivated." };
   const valid = await verifyPassword(password, user.passwordHash);
-  if (!valid) return { ok: false, error: "Invalid email/username or password." };
+  if (!valid || !user.isActive) {
+    return { ok: false, error: "Invalid email/username or password." };
+  }
   await ensureRole(user);
-  await createSession(user.id, remember);
-  return { ok: true, user: toSessionUser(user) };
+  await createSession(user.id, remember, user.sessionVersion);
+  return { ok: true, user: toSessionUser(user), sessionVersion: user.sessionVersion };
 }
 
 export async function registerUser(data: {
@@ -226,6 +258,12 @@ export async function registerUser(data: {
   if (existing) {
     return { ok: false, error: "An account with that email or username already exists." };
   }
+  if (superAdminEmail && email === superAdminEmail) {
+    const owner = await prisma.user.findFirst({ where: { role: "SUPER_ADMIN" } });
+    if (owner) {
+      return { ok: false, error: "That email is reserved for the platform owner." };
+    }
+  }
   const passwordHash = await hashPassword(data.password);
   try {
     const user = await prisma.user.create({
@@ -239,7 +277,7 @@ export async function registerUser(data: {
     });
     await ensureRole(user);
     await createSession(user.id);
-    return { ok: true, user: toSessionUser(user) };
+    return { ok: true, user: toSessionUser(user), sessionVersion: user.sessionVersion };
   } catch (err) {
     if (isPrismaUniqueError(err)) {
       return { ok: false, error: "An account with that email or username already exists." };
@@ -285,13 +323,16 @@ export async function resetPassword(token: string, newPassword: string): Promise
   }
   const passwordHash = await hashPassword(newPassword);
   await prisma.$transaction([
-    prisma.user.update({ where: { id: reset.userId }, data: { passwordHash } }),
+    prisma.user.update({
+      where: { id: reset.userId },
+      data: { passwordHash, sessionVersion: { increment: 1 }, mustChangePassword: false },
+    }),
     prisma.passwordReset.update({ where: { id: reset.id }, data: { used: true } }),
   ]);
   await destroySession();
   const user = await prisma.user.findUnique({ where: { id: reset.userId } });
   if (!user) return { ok: false, error: "User not found." };
   await ensureRole(user);
-  await createSession(user.id);
-  return { ok: true, user: toSessionUser(user) };
+  await createSession(user.id, true, user.sessionVersion);
+  return { ok: true, user: toSessionUser(user), sessionVersion: user.sessionVersion };
 }

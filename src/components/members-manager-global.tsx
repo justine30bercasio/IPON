@@ -439,7 +439,7 @@ export function MembersManager({
                 type={showPw ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="At least 6 characters"
+                placeholder="At least 8 characters"
                 className="pr-11"
               />
               <button

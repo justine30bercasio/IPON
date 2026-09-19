@@ -21,6 +21,7 @@ model Organization {
 
   users      User[]
   challenges Challenge[]
+  activityLogs ActivityLog[]
 
   @@index([name])
 }
@@ -76,6 +77,8 @@ model User {
   phone        String?
   role         Role     @default(MEMBER)
   isActive     Boolean  @default(true)
+  sessionVersion Int    @default(0)
+  mustChangePassword Boolean @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -86,6 +89,7 @@ model User {
   memberships         ChallengeMember[]
   recordedTransactions HulogTransaction[] @relation("RecordedBy")
   confirmedTransactions HulogTransaction[] @relation("ConfirmedBy")
+  voidedTransactions   HulogTransaction[] @relation("VoidedBy")
   notifications       Notification[]
   activityLogs        ActivityLog[]
   passwordResets      PasswordReset[]
@@ -140,7 +144,7 @@ model ChallengeMember {
   challengeId String
   userId      String
   challenge   Challenge        @relation(fields: [challengeId], references: [id], onDelete: Cascade)
-  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User             @relation(fields: [userId], references: [id], onDelete: Restrict)
   joinedAt    DateTime         @default(now())
   status      MembershipStatus @default(ACTIVE)
   isAdmin     Boolean          @default(false)
@@ -155,7 +159,7 @@ model HulogTransaction {
   id               String            @id @default(cuid())
   challengeId      String
   memberId         String
-  amount           Float
+  amount           Int
   transactionDate  DateTime
   collectionPeriod String
   paymentMethod    PaymentMethod     @default(CASH)
@@ -166,15 +170,19 @@ model HulogTransaction {
   confirmedByUserId String?
   confirmedBy      User?             @relation("ConfirmedBy", fields: [confirmedByUserId], references: [id])
   confirmedAt      DateTime?
+  voidedByUserId   String?
+  voidedBy         User?             @relation("VoidedBy", fields: [voidedByUserId], references: [id])
+  voidedAt         DateTime?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
   challenge Challenge       @relation(fields: [challengeId], references: [id], onDelete: Cascade)
-  member    ChallengeMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  member    ChallengeMember @relation(fields: [memberId], references: [id], onDelete: Restrict)
 
   @@index([challengeId, transactionDate])
   @@index([memberId, transactionDate])
   @@index([status])
+  @@index([challengeId, status])
 }
 
 model Notification {
@@ -191,10 +199,13 @@ model Notification {
   createdAt DateTime @default(now())
 
   @@index([userId, read])
+  @@index([challengeId])
 }
 
 model ActivityLog {
   id          String    @id @default(cuid())
+  orgId       String?
+  org         Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
   challengeId String?
   challenge   Challenge? @relation(fields: [challengeId], references: [id], onDelete: SetNull)
   userId      String?
@@ -206,6 +217,7 @@ model ActivityLog {
 
   @@index([challengeId, createdAt])
   @@index([userId, createdAt])
+  @@index([orgId, createdAt])
 }
 
 model PasswordReset {
@@ -216,4 +228,6 @@ model PasswordReset {
   used      Boolean   @default(false)
   expiresAt DateTime
   createdAt DateTime  @default(now())
+
+  @@index([userId])
 }

@@ -1,5 +1,6 @@
 import type { Challenge, ChallengeSchedule, Frequency } from "@prisma/client";
 import { startOfWeek } from "date-fns";
+import { manilaTodayKey } from "@/lib/manila";
 
 export type ScheduleWithChallenge = ChallengeSchedule & {
   challenge: Pick<Challenge, "startDate">;
@@ -166,8 +167,7 @@ function prettyCustom(key: string): string {
 }
 
 export function todayIsoKey(): string {
-  const d = new Date();
-  return dayKey(d);
+  return manilaTodayKey();
 }
 
 export function isCollectionSoon(schedule: ScheduleRule, date = new Date()): boolean {

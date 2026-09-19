@@ -1,6 +1,8 @@
-export function money(amount: number | null | undefined): string {
-  if (amount == null) return "₱0";
-  return amount.toLocaleString("en-PH", {
+import { fromCents } from "@/lib/money";
+
+export function money(cents: number | null | undefined): string {
+  if (cents == null) return "₱0";
+  return fromCents(cents).toLocaleString("en-PH", {
     style: "currency",
     currency: "PHP",
     minimumFractionDigits: 0,
@@ -8,9 +10,9 @@ export function money(amount: number | null | undefined): string {
   });
 }
 
-export function moneyShort(amount: number | null | undefined): string {
-  if (amount == null) return "₱0";
-  const n = Math.round(amount);
+export function moneyShort(cents: number | null | undefined): string {
+  if (cents == null) return "₱0";
+  const n = Math.round(fromCents(cents));
   if (Math.abs(n) >= 1_000_000) return `₱${(n / 1_000_000).toFixed(1)}M`;
   if (Math.abs(n) >= 1_000) return `₱${(n / 1_000).toFixed(1)}k`;
   return `₱${n.toLocaleString("en-PH")}`;

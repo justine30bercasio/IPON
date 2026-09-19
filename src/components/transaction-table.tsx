@@ -18,6 +18,7 @@ import { toast } from "@/components/ui/toast";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { StatusBadge, PaymentChip, statusLabel, WithdrawalChip } from "@/components/transaction-card";
 import { money, formatDate } from "@/lib/format";
+import { fromCents } from "@/lib/money";
 import {
   confirmTransactionAction,
   voidTransactionAction,
@@ -301,12 +302,12 @@ export function TransactionsTable({
           setConfirm(false);
           run(
             () => confirmTransactionAction(target.id),
-            `₱${target.amount.toLocaleString("en-PH")} hulog confirmed`
+            `${money(target.amount)} hulog confirmed`
           );
           setTarget(null);
         }}
         title="Confirm this hulog?"
-        description={`This marks the ₱${target?.amount.toLocaleString("en-PH")} hulog as confirmed.`}
+        description={`This marks the ${money(target?.amount)} hulog as confirmed.`}
         confirmLabel="Confirm hulog"
         loading={busy}
       />
@@ -519,7 +520,7 @@ function EditTxModal({
   onClose: () => void;
   onSaved: (message: string) => void;
 }) {
-  const [amount, setAmount] = React.useState(() => (tx ? String(tx.amount) : ""));
+  const [amount, setAmount] = React.useState(() => (tx ? String(fromCents(tx.amount)) : ""));
   const [date, setDate] = React.useState(() => tx?.transactionDate.slice(0, 10) ?? "");
   const [method, setMethod] = React.useState<PaymentMethod>(() => tx?.paymentMethod ?? "CASH");
   const [note, setNote] = React.useState(() => tx?.note ?? "");

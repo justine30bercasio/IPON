@@ -56,6 +56,32 @@ async function main() {
     console.log(`  Super admin promoted: ${email}`);
   }
 
+  const testEmail = process.env.TEST_EMAIL?.trim()?.toLowerCase() || "jbercasio30@gmail.com";
+  const testPassword = process.env.TEST_PASSWORD || "Justine30";
+  const testName = process.env.TEST_NAME || "Justine Bercasio (local test)";
+  const localOnly = process.env.NODE_ENV !== "production";
+  await prisma.user.upsert({
+    where: { email: testEmail },
+    update: { name: testName, role: "ADMIN", orgId: org.id, isActive: true, mustChangePassword: false },
+    create: {
+      email: testEmail,
+      username: testEmail.split("@")[0],
+      name: testName,
+      role: "ADMIN",
+      isActive: true,
+      orgId: org.id,
+      passwordHash: await bcrypt.hash(testPassword, 12),
+    },
+  });
+  if (localOnly) {
+    await prisma.user.update({
+      where: { email: testEmail },
+      data: { role: "SUPER_ADMIN" },
+    });
+    console.log(`  Local super admin seeded: ${testEmail}`);
+  }
+  console.log(`  Local test admin seeded: ${testEmail} / (password from TEST_PASSWORD or "Justine30")`);
+
   console.log("Production bootstrap complete.");
   console.log(`  Organization: ${org.name} (${org.slug})`);
   console.log(`  Admin email : ${admin.email}`);

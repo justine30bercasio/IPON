@@ -43,8 +43,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   });
 
   return (
-    <AppShell
-      user={{ id: user.id, name: user.name, role: user.role, email: user.email }}
+      <AppShell
+        user={{ id: user.id, name: user.name, role: user.role, email: user.email, mustChangePassword: user.mustChangePassword }}
       orgName={org?.name ?? ""}
       challenges={challenges.map((c) => ({
         id: c.id,

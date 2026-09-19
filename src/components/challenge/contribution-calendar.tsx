@@ -313,7 +313,12 @@ function DayDetail({
             Transactions
           </p>
           <div className="flex max-h-64 flex-col gap-2 overflow-y-auto pr-1 no-scrollbar">
-            {day.txs.length === 0 && (
+            {mode === "totals" && day.txs.length === 0 && day.total > 0 && (
+              <p className="rounded-xl border border-line/60 px-3 py-2.5 text-sm text-ink-soft/70">
+                Individual amounts are private in this challenge. The group total is shown above.
+              </p>
+            )}
+            {day.txs.length === 0 && !(mode === "totals" && day.total > 0) && (
               <p className="text-sm text-ink-soft/70">No contributions recorded this day.</p>
             )}
             {day.txs.map((tx) => (

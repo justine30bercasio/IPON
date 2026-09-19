@@ -23,7 +23,12 @@ export default function RegisterPage() {
       setBusy(true);
       setError("");
       try {
-        const res = await fetch("/api/auth/register", { method: "POST", cache: "no-store", body: new FormData(form) });
+        const res = await fetch("/api/auth/register", {
+          method: "POST",
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+          body: new FormData(form),
+        });
         const data = await res.json().catch(() => null);
         if (!data?.ok) {
           setError(data?.error ?? "Registration failed. Please try again.");
@@ -79,7 +84,7 @@ export default function RegisterPage() {
               <Input name="username" placeholder="juan" className="pl-10" />
             </div>
           </Field>
-          <Field label="Password" hint="At least 6 characters.">
+          <Field label="Password" hint="At least 8 characters with uppercase, lowercase, and a number.">
             <div className="relative">
               <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft/50" />
               <Input

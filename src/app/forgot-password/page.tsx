@@ -32,7 +32,12 @@ export default function ForgotPasswordPage() {
       setResetBusy(true);
       setResetError("");
       try {
-        const res = await fetch("/api/auth/reset", { method: "POST", cache: "no-store", body: new FormData(form) });
+        const res = await fetch("/api/auth/reset", {
+          method: "POST",
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+          body: new FormData(form),
+        });
         const data = await res.json().catch(() => null);
         if (!data?.ok) {
           setResetError(data?.error ?? "Reset failed. Please try again.");
@@ -131,7 +136,7 @@ export default function ForgotPasswordPage() {
                 />
               </div>
             </Field>
-            <Field label="New password" hint="At least 6 characters.">
+            <Field label="New password" hint="At least 8 characters with uppercase, lowercase, and a number.">
               <div className="relative">
                 <Input name="password" type={showPw ? "text" : "password"} placeholder="••••••••" className="pr-11" />
                 <button

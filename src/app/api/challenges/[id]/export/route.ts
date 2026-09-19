@@ -28,6 +28,8 @@ export async function GET(
     include: { member: { include: { user: { select: { name: true, email: true } } } } },
     orderBy: { transactionDate: "asc" },
   });
+  const confirmedTxs = txs.filter((t) => t.status === "CONFIRMED");
+  const totalConfirmed = confirmedTxs.reduce((s, t) => s + t.amount, 0);
 
   const rows = txs.map((t) => ({
     name: t.member.user.name,
@@ -51,7 +53,7 @@ export async function GET(
     const lines = [
       ["Member", "Email", "Date", "Period", "Amount (PHP)", "Payment Method", "Status", "Note"].map(esc).join(","),
       ...rows.map((r) =>
-        [r.name, r.email, r.date, r.period, r.amount.toFixed(2), r.method, r.status, r.note].map(esc).join(",")
+        [r.name, r.email, r.date, r.period, (r.amount / 100).toFixed(2), r.method, r.status, r.note].map(esc).join(",")
       ),
     ];
     return new Response("\uFEFF" + lines.join("\n"), {
@@ -94,7 +96,7 @@ export async function GET(
         email: r.email,
         date: r.date,
         period: r.period,
-        amount: r.amount,
+        amount: r.amount / 100,
         method: r.method,
         status: r.status,
         note: r.note,
@@ -105,10 +107,9 @@ export async function GET(
     lastCol.alignment = { horizontal: "right" };
     sheet.autoFilter = { from: "A1", to: `H${rows.length + 1}` };
 
-    const total = txs.reduce((s, t) => s + t.amount, 0);
     const totalRow = sheet.addRow({
       name: "TOTAL COLLECTED",
-      amount: total,
+      amount: totalConfirmed / 100,
     });
     totalRow.font = { bold: true };
     totalRow.getCell(5).numFmt = '"₱"#,##0.00';
@@ -124,15 +125,17 @@ export async function GET(
   }
 
   if (format === "pdf") {
-    const months = new Map<string, { count: number; total: number }>();
-    for (const t of txs) {
-      const b = months.get(t.collectionPeriod) ?? { count: 0, total: 0 };
+    const months = new Map<string, { period: string; count: number; total: number }>();
+    for (const t of confirmedTxs) {
+      const d = t.transactionDate;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const b = months.get(key) ?? { period: t.collectionPeriod, count: 0, total: 0 };
       b.count++;
       b.total += t.amount;
-      months.set(t.collectionPeriod, b);
+      months.set(key, b);
     }
-    const total = txs.reduce((s, t) => s + t.amount, 0);
-    const members = new Set(txs.map((t) => t.member.user.name)).size;
+    const total = totalConfirmed;
+    const members = new Set(confirmedTxs.map((t) => t.member.user.name)).size;
 
     const html = `<!DOCTYPE html>
 <html lang="en">
@@ -169,21 +172,21 @@ export async function GET(
   </div>
   <div class="stats">
     <div class="stat"><div class="k">Total Collected</div><div class="v">${money(total)}</div></div>
-    <div class="stat"><div class="k">Transactions</div><div class="v">${txs.length}</div></div>
+    <div class="stat"><div class="k">Transactions</div><div class="v">${confirmedTxs.length}</div></div>
     <div class="stat"><div class="k">Contributing Members</div><div class="v">${members}</div></div>
-    <div class="stat"><div class="k">Average Hulog</div><div class="v">${txs.length ? money(total / txs.length) : "₱0"}</div></div>
+    <div class="stat"><div class="k">Average Hulog</div><div class="v">${confirmedTxs.length ? money(total / confirmedTxs.length) : "₱0"}</div></div>
   </div>
   <h2 style="font-size:15px;margin-top:24px;">Monthly Summary</h2>
   <table>
     <tr><th>Period</th><th class="r">Transactions</th><th class="r">Total Collected</th></tr>
     ${Array.from(months.entries())
-      .sort((a, b) => (a[0] > b[0] ? -1 : 1))
+      .sort((a, b) => (a[0] < b[0] ? 1 : -1))
       .map(
-        ([period, b]) =>
-          `<tr><td class="mon">${escapeHtml(period)}</td><td class="r">${b.count}</td><td class="r">${money(b.total)}</td></tr>`
+        ([, b]) =>
+          `<tr><td class="mon">${escapeHtml(b.period)}</td><td class="r">${b.count}</td><td class="r">${money(b.total)}</td></tr>`
       )
       .join("")}
-    <tr><td class="mon">TOTAL</td><td class="r">${txs.length}</td><td class="r">${money(total)}</td></tr>
+    <tr><td class="mon">TOTAL</td><td class="r">${confirmedTxs.length}</td><td class="r">${money(total)}</td></tr>
   </table>
   <h2 style="font-size:15px;margin-top:24px;">All Transactions</h2>
   <table>

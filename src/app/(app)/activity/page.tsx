@@ -10,6 +10,8 @@ import {
   Settings,
   ShieldCheck,
   UserCog,
+  ArrowDownToLine,
+  Building2,
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireUser, isOrgAdmin } from "@/lib/auth";
@@ -24,12 +26,22 @@ const typeMeta: Record<string, { icon: React.ElementType; bg: string; text: stri
   HULOG_CONFIRMED: { icon: CheckCheck, bg: "bg-emerald-100", text: "text-emerald-700", label: "Confirmed" },
   HULOG_VOIDED: { icon: Ban, bg: "bg-rose-100", text: "text-rose-700", label: "Voided" },
   HULOG_EDITED: { icon: Pencil, bg: "bg-amber-100", text: "text-amber-700", label: "Edited" },
+  HULOG_WITHDRAW: { icon: ArrowDownToLine, bg: "bg-emerald-100", text: "text-emerald-700", label: "Withdrawal" },
   MEMBER_ADDED: { icon: UserPlus, bg: "bg-brand-100", text: "text-brand-700", label: "Member" },
   MEMBER_REMOVED: { icon: UserMinus, bg: "bg-mist", text: "text-ink-soft", label: "Removed" },
   MEMBER_STATUS: { icon: UserCog, bg: "bg-amber-100", text: "text-amber-700", label: "Updated" },
   CHALLENGE_CREATED: { icon: Trophy, bg: "bg-violet-100", text: "text-violet-700", label: "Challenge" },
   CHALLENGE_UPDATED: { icon: Settings, bg: "bg-sky-100", text: "text-sky-700", label: "Settings" },
   PASSWORD_RESET: { icon: ShieldCheck, bg: "bg-rose-100", text: "text-rose-700", label: "Password" },
+  USER_PASSWORD_RESET: { icon: ShieldCheck, bg: "bg-rose-100", text: "text-rose-700", label: "Password" },
+  USER_PROFILE: { icon: UserCog, bg: "bg-sky-100", text: "text-sky-700", label: "Profile" },
+  USER_ROLE: { icon: ShieldCheck, bg: "bg-violet-100", text: "text-violet-700", label: "Role" },
+  USER_ACTIVE: { icon: UserCog, bg: "bg-amber-100", text: "text-amber-700", label: "Access" },
+  USER_DELETE: { icon: UserMinus, bg: "bg-rose-100", text: "text-rose-700", label: "Removed" },
+  ORG_CREATE: { icon: Building2, bg: "bg-emerald-100", text: "text-emerald-700", label: "Organization" },
+  ORG_RENAME: { icon: Building2, bg: "bg-sky-100", text: "text-sky-700", label: "Organization" },
+  MEMBER_ACTIVE: { icon: UserCog, bg: "bg-emerald-100", text: "text-emerald-700", label: "Access" },
+  VERIFICATION: { icon: ShieldCheck, bg: "bg-brand-100", text: "text-brand-700", label: "Account" },
 };
 
 export default async function ActivityPage() {
@@ -40,8 +52,8 @@ export default async function ActivityPage() {
     where: admin
       ? {
           OR: [
+            { orgId: user.orgId },
             { challenge: { orgId: user.orgId } },
-            { challengeId: null, userId: user.id },
           ],
         }
       : { userId: user.id },

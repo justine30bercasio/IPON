@@ -33,7 +33,7 @@ export function CreateOrgAdminForm({ orgId }: { orgId: string }) {
         </Field>
       </div>
       <Field label="Temporary password" hint="They can change it later from their profile.">
-        <Input name="password" type="password" placeholder="Min 6 characters" required minLength={6} />
+        <Input name="password" type="password" placeholder="Min 8 characters, with upper/lower/number" required minLength={8} />
       </Field>
       <Button type="submit" variant="secondary" loading={pending} className="self-start">
         <UserCog className="h-4 w-4" />

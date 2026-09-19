@@ -13,6 +13,8 @@ import {
   Plus,
   Users,
   LogOut,
+  ShieldAlert,
+  KeyRound,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -46,7 +48,7 @@ export function AppShell({
   unread,
   children,
 }: {
-  user: { id: string; name: string; role: string; email?: string };
+  user: { id: string; name: string; role: string; email?: string; mustChangePassword?: boolean };
   orgName: string;
   challenges: {
     id: string;
@@ -226,6 +228,25 @@ export function AppShell({
         </header>
 
         <main className="w-full px-4 pb-28 pt-6 sm:px-6 lg:px-8 lg:pb-12 lg:pt-8">
+          {user.mustChangePassword && (
+            <div className="mb-5 flex flex-col gap-2 rounded-2xl border border-amber-300/70 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                <div>
+                  <p className="text-sm font-bold text-amber-900">Imported account</p>
+                  <p className="text-xs text-amber-900/70">
+                    You are using an imported or assigned password. Change it to protect your account.
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/profile#password"
+                className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full bg-amber-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-amber-700"
+              >
+                <KeyRound className="h-4 w-4" /> Set new password
+              </Link>
+            </div>
+          )}
           {children}
         </main>
       </div>

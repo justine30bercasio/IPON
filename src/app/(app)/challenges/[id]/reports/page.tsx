@@ -33,7 +33,7 @@ export default async function ChallengeReportsPage({
   if (!isAdmin && !isMember) notFound();
 
   const allTx = await prisma.hulogTransaction.findMany({
-    where: { challengeId: challenge.id, status: { not: "VOIDED" } },
+    where: { challengeId: challenge.id, status: "CONFIRMED" },
     include: { member: { include: { user: { select: { name: true } } } } },
     orderBy: { transactionDate: "asc" },
   });
@@ -44,9 +44,12 @@ export default async function ChallengeReportsPage({
   const monthly = await getChallengeMonthlySeries(challenge.id, 8);
   const memberAggs = await getMemberAggregates(challenge.id);
 
-  const monthlyReport = new Map<string, { count: number; total: number; contributors: Set<string> }>();
+  const monthlyReport = new Map<string, { period: string; count: number; total: number; contributors: Set<string> }>();
   for (const tx of allTx) {
-    const bucket = monthlyReport.get(tx.collectionPeriod) ?? {
+    const d = tx.transactionDate;
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const bucket = monthlyReport.get(key) ?? {
+      period: tx.collectionPeriod,
       count: 0,
       total: 0,
       contributors: new Set<string>(),
@@ -54,10 +57,10 @@ export default async function ChallengeReportsPage({
     bucket.count++;
     bucket.total += tx.amount;
     bucket.contributors.add(tx.memberId);
-    monthlyReport.set(tx.collectionPeriod, bucket);
+    monthlyReport.set(key, bucket);
   }
 
-  const monthSorted = Array.from(monthlyReport.entries()).sort((a, b) => (a[0] > b[0] ? -1 : 1));
+  const monthSorted = Array.from(monthlyReport.entries()).sort((a, b) => (a[0] < b[0] ? 1 : -1));
 
   const showTotals = canSeeTotals(user.role, challenge.visibility);
   const canExport = isAdmin && allTx.length > 0;
@@ -197,12 +200,12 @@ export default async function ChallengeReportsPage({
                 <EmptyState emoji="📅" title="No periods yet" />
               ) : (
                 <DataTable
-                  rows={monthSorted.map(([period, b]) => ({
-                    id: period,
-                    searchText: period,
+                  rows={monthSorted.map(([key, b]) => ({
+                    id: key,
+                    searchText: b.period,
                     cells: (
-                      <tr key={period} className="border-b border-line/40 last:border-0 hover:bg-mist/40">
-                        <td className="px-4 py-3 font-bold text-ink">{period}</td>
+                      <tr key={key} className="border-b border-line/40 last:border-0 hover:bg-mist/40">
+                        <td className="px-4 py-3 font-bold text-ink">{b.period}</td>
                         <td className="px-4 py-3 text-right font-medium text-ink-soft">{b.count}</td>
                         <td className="px-4 py-3 text-right font-extrabold text-brand-700">{money(b.total)}</td>
                         <td className="px-4 py-3 text-right font-medium text-ink-soft">{b.contributors.size}</td>

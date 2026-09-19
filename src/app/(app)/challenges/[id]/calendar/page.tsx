@@ -37,23 +37,27 @@ export default async function ChallengeCalendarPage({
 
   const mode = !isAdmin && !canSeeTotals(user.role, challenge.visibility) ? "count" : (canSeeMemberAmounts(user.role, challenge.visibility) || isAdmin) ? "full" : "totals";
 
-  const byDate = new Map<string, CalendarTx[]>();
+  const shipTxList = mode === "full" || mode === "count";
+  const allowDayTotal = mode === "full" || mode === "totals";
+
+  const byDate = new Map<string, { rawTotal: number; txs: CalendarTx[] }>();
   for (const tx of txs) {
     const key = isoDayKey(tx.transactionDate);
-    const list = byDate.get(key) ?? [];
-    list.push({
+    const bucket = byDate.get(key) ?? { rawTotal: 0, txs: [] };
+    bucket.rawTotal += tx.amount;
+    bucket.txs.push({
       id: tx.id,
-      amount: tx.amount,
+      amount: mode === "full" ? tx.amount : 0,
       member: tx.member.user.name,
       memberId: tx.member.user.id,
       paymentMethod: tx.paymentMethod,
       status: tx.status,
     });
-    byDate.set(key, list);
+    byDate.set(key, bucket);
   }
 
   const months: Record<string, CalendarDayData[]> = {};
-  for (const [key, list] of byDate) {
+  for (const [key, bucket] of byDate) {
     const [y, m] = key.split("-").map(Number);
     const ym = `${y}-${String(m).padStart(2, "0")}`;
     const arr = months[ym] ?? [];
@@ -61,11 +65,11 @@ export default async function ChallengeCalendarPage({
     arr.push({
       dateKey: key,
       day: Number(key.split("-")[2]),
-      total: list.reduce((s, t) => s + t.amount, 0),
-      count: list.length,
-      contributors: new Set(list.map((t) => t.memberId)).size,
+      total: allowDayTotal ? bucket.rawTotal : 0,
+      count: bucket.txs.length,
+      contributors: new Set(bucket.txs.map((t) => t.memberId)).size,
       isCollection: isCollectionDate(scheduleRule, date),
-      txs: list,
+      txs: shipTxList ? bucket.txs : [],
     });
     months[ym] = arr;
   }

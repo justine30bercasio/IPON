@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { TransactionStatus } from "@prisma/client";
+import { MANILA_TZ, manilaMonthStart, manilaMonthKey } from "@/lib/manila";
 
 export interface MonthlySeriesPoint {
   key: string;
@@ -13,10 +14,7 @@ export async function getChallengeMonthlySeries(
   challengeId: string,
   months = 8
 ): Promise<MonthlySeriesPoint[]> {
-  const start = new Date();
-  start.setMonth(start.getMonth() - (months - 1));
-  start.setDate(1);
-  start.setHours(0, 0, 0, 0);
+  const start = manilaMonthStart(-(months - 1));
 
   const txs = await prisma.hulogTransaction.findMany({
     where: {
@@ -30,8 +28,7 @@ export async function getChallengeMonthlySeries(
 
   const byMonth = new Map<string, { total: number; count: number; members: Set<string> }>();
   for (const tx of txs) {
-    const d = tx.transactionDate;
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const key = manilaMonthKey(tx.transactionDate);
     const bucket = byMonth.get(key) ?? { total: 0, count: 0, members: new Set<string>() };
     bucket.total += tx.amount;
     bucket.count += 1;
@@ -42,12 +39,12 @@ export async function getChallengeMonthlySeries(
   const now = new Date();
   const points: MonthlySeriesPoint[] = [];
   for (let i = months - 1; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const startOfMonth = manilaMonthStart(-i);
+    const key = manilaMonthKey(startOfMonth);
     const bucket = byMonth.get(key);
     points.push({
       key,
-      month: d.toLocaleDateString("en-PH", { month: "short" }),
+      month: startOfMonth.toLocaleDateString("en-PH", { month: "short", timeZone: MANILA_TZ }),
       total: bucket?.total ?? 0,
       count: bucket?.count ?? 0,
       contributors: bucket?.members.size ?? 0,
@@ -86,7 +83,7 @@ export async function getMemberAggregates(
   });
 
   const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthStart = manilaMonthStart();
 
   return members.map((m) => {
     let total = 0;
@@ -121,7 +118,7 @@ export async function getChallengeTotals(challengeId: string) {
   });
   const total = txs.reduce((s, t) => s + t.amount, 0);
   const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthStart = manilaMonthStart();
   const thisMonth = txs
     .filter((t) => t.transactionDate >= monthStart)
     .reduce((s, t) => s + t.amount, 0);
@@ -202,20 +199,20 @@ export async function getPersonalStats(userId: string): Promise<PersonalStats> {
 
   const total = txs.reduce((s, t) => s + t.amount, 0);
   const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthStart = manilaMonthStart();
   const thisMonth = txs
     .filter((t) => t.transactionDate >= monthStart)
     .reduce((s, t) => s + t.amount, 0);
 
   const byMonth = new Map<string, number>();
   for (const t of txs) {
-    const key = `${t.transactionDate.getFullYear()}-${String(t.transactionDate.getMonth() + 1).padStart(2, "0")}`;
+    const key = manilaMonthKey(t.transactionDate);
     byMonth.set(key, (byMonth.get(key) ?? 0) + t.amount);
   }
   const monthly: PersonalStats["monthly"] = [];
   for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const d = manilaMonthStart(-i);
+    const key = manilaMonthKey(d);
     monthly.push({
       key,
       month: d.toLocaleDateString("en-PH", { month: "short" }),
