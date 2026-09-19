@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
-import { Trophy, ArrowRight, Building2, ShieldCheck, UserCog } from "lucide-react";
+import { Trophy, ArrowRight, Building2, ShieldCheck, UserCog, Users } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { money } from "@/lib/format";
@@ -11,6 +11,8 @@ import { Avatar } from "@/components/ui/avatar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RenameOrgForm } from "@/components/admin/rename-org-form";
 import { CreateOrgAdminForm } from "@/components/admin/create-org-admin-form";
+import { AddOrgMembersForm } from "@/components/admin/add-org-members-form";
+import { CreateOrgChallengeForm } from "@/components/admin/create-org-challenge-form";
 
 export default async function OrganizationDetailPage({
   params,
@@ -229,6 +231,34 @@ export default async function OrganizationDetailPage({
           />
           <CardContent>
             <CreateOrgAdminForm orgId={org.id} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader
+            title="Add members"
+            subtitle="Bulk-create member accounts for this organization."
+            action={
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+                <Users className="h-4 w-4" />
+              </span>
+            }
+          />
+          <CardContent>
+            <AddOrgMembersForm orgId={org.id} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader
+            title="Create challenge"
+            subtitle="Set up the first savings challenge for this organization."
+            action={
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+                <Trophy className="h-4 w-4" />
+              </span>
+            }
+          />
+          <CardContent>
+            <CreateOrgChallengeForm orgId={org.id} />
           </CardContent>
         </Card>
         <Card>

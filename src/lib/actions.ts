@@ -892,6 +892,170 @@ export async function adminAddMembersAction(
   };
 }
 
+export async function adminAddOrgMembersAction(
+  orgId: string,
+  prev: unknown,
+  formData: FormData
+): Promise<ActionResult> {
+  const user = await requireAdmin();
+  if (user.role !== "SUPER_ADMIN") {
+    return { ok: false, error: "Super admin access required." };
+  }
+  const org = await prisma.organization.findUnique({ where: { id: orgId } });
+  if (!org) return { ok: false, error: "Organization not found." };
+
+  const raw = String(formData.get("members") ?? "");
+  const names = raw
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (names.length === 0) return { ok: false, error: "Enter at least one member." };
+
+  let created = 0;
+  let errors = 0;
+  const newAccounts: { email: string; password: string }[] = [];
+
+  for (const line of names) {
+    const parts = line.split(",").map((p) => p.trim());
+    const email = (parts[0] ?? "").toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors++;
+      continue;
+    }
+    const memberName = parts[1] || email.split("@")[0];
+    const baseUsername = email
+      .split("@")[0]
+      .replace(/[^a-z0-9_.-]/gi, "")
+      .toLowerCase();
+    if (await prisma.user.findUnique({ where: { email } })) {
+      errors++;
+      continue;
+    }
+    let username = baseUsername;
+    let suffix = 1;
+    while (await prisma.user.findUnique({ where: { username } })) {
+      username = `${baseUsername}-${suffix++}`;
+    }
+    const password = randomPassword();
+    await prisma.user.create({
+      data: {
+        email,
+        username,
+        name: memberName,
+        passwordHash: await hashPassword(password),
+        role: "MEMBER",
+        isActive: true,
+        orgId: org.id,
+      },
+    });
+    newAccounts.push({ email, password });
+    created++;
+  }
+
+  revalidateAll();
+  if (errors > 0 && created === 0) {
+    return { ok: false, error: `${errors} invalid or already-registered email address(es).` };
+  }
+  const passwordNote =
+    newAccounts.length > 0
+      ? ` Temporary passwords: ${newAccounts.map((a) => `${a.email} / ${a.password}`).join(", ")}`
+      : "";
+  return {
+    ok: true,
+    message: `${created} member${created === 1 ? "" : "s"} created in ${org.name}${errors ? `, ${errors} skipped` : ""}.${passwordNote}`,
+  };
+}
+
+export async function createOrgChallengeAction(
+  orgId: string,
+  prev: unknown,
+  formData: FormData
+): Promise<ActionResult> {
+  const user = await requireAdmin();
+  if (user.role !== "SUPER_ADMIN") {
+    return { ok: false, error: "Super admin access required." };
+  }
+  const org = await prisma.organization.findUnique({ where: { id: orgId } });
+  if (!org) return { ok: false, error: "Organization not found." };
+
+  const name = String(formData.get("name") ?? "").trim();
+  if (name.length < 3) return { ok: false, error: "Challenge name must be at least 3 characters." };
+  const description = String(formData.get("description") ?? "").trim() || null;
+  const startDate = parseDate(formData.get("startDate"));
+  const endRaw = formData.get("endDate");
+  const endDate = endRaw && String(endRaw).trim() ? parseDate(endRaw) : null;
+  if (endDate && endDate <= startDate) {
+    return { ok: false, error: "End date must be after the start date." };
+  }
+  const frequency = String(formData.get("frequency") ?? "MONTHLY") as Frequency;
+  const validity: Frequency[] = ["MONTHLY", "WEEKLY", "BIWEEKLY", "TWICE_MONTHLY", "CUSTOM", "FLEXIBLE"];
+  if (!validity.includes(frequency)) {
+    return { ok: false, error: "Please pick a contribution schedule." };
+  }
+  const dayOfMonth = parseInt(String(formData.get("dayOfMonth") ?? "0"), 10);
+  const secondDayOfMonth = parseInt(String(formData.get("secondDayOfMonth") ?? "0"), 10);
+  const dayOfWeek = parseInt(String(formData.get("dayOfWeek") ?? "0"), 10);
+  const customDatesRaw = String(formData.get("customDates") ?? "").trim();
+  const customDates = parseCustomDatesRaw(customDatesRaw);
+  if (frequency === "MONTHLY" && !(dayOfMonth >= 1 && dayOfMonth <= 31)) {
+    return { ok: false, error: "Monthly schedule needs a day of the month (1–31)." };
+  }
+  if (frequency === "TWICE_MONTHLY" && !(dayOfMonth >= 1 && dayOfMonth <= 31)) {
+    return { ok: false, error: "Twice-a-month schedule needs two days of the month." };
+  }
+  if (frequency === "CUSTOM" && customDates.length === 0) {
+    return { ok: false, error: "Custom schedule needs at least one valid collection date (YYYY-MM-DD)." };
+  }
+
+  const visibilityRaw = String(formData.get("visibility") ?? "GROUP_TOTALS");
+  const visibility = ["PRIVATE", "GROUP_TOTALS", "TRANSPARENT"].includes(visibilityRaw)
+    ? (visibilityRaw as Visibility)
+    : "GROUP_TOTALS";
+  const leaderboardEnabled = formData.get("leaderboardEnabled") === "on";
+  const allowMemberHulog = formData.get("allowMemberHulog") !== "off";
+
+  const challenge = await prisma.challenge.create({
+    data: {
+      orgId: org.id,
+      name,
+      description,
+      startDate,
+      endDate,
+      createdById: user.id,
+      visibility,
+      leaderboardEnabled,
+      allowMemberHulog,
+      schedules: {
+        create: {
+          frequency,
+          dayOfMonth: dayOfMonth >= 1 && dayOfMonth <= 31 ? dayOfMonth : null,
+          secondDayOfMonth:
+            frequency === "TWICE_MONTHLY" && secondDayOfMonth >= 1 && secondDayOfMonth <= 31
+              ? secondDayOfMonth
+              : null,
+          dayOfWeek: frequency === "WEEKLY" ? dayOfWeek : null,
+          customDates:
+            frequency === "CUSTOM"
+              ? (customDates as Prisma.InputJsonValue)
+              : Prisma.JsonNull,
+        },
+      },
+    },
+  });
+
+  await prisma.activityLog.create({
+    data: {
+      challengeId: challenge.id,
+      userId: user.id,
+      type: "challenge",
+      message: `Super admin created challenge "${challenge.name}" in ${org.name}`,
+    },
+  });
+
+  revalidateAll();
+  return { ok: true, message: `Challenge "${challenge.name}" created in ${org.name}.` };
+}
+
 export async function toggleMemberStatusAction(
   memberId: string
 ): Promise<ActionResult> {
