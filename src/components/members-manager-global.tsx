@@ -47,9 +47,11 @@ export interface GlobalMember {
 export function MembersManager({
   members,
   currentUserId,
+  orgId = "",
 }: {
   members: GlobalMember[];
   currentUserId: string;
+  orgId?: string;
 }) {
   const router = useRouter();
   const [q, setQ] = React.useState("");
@@ -493,17 +495,26 @@ export function MembersManager({
         confirmHint="Type DELETE to confirm"
       />
 
-      <AddMembersModal open={addOpen} onClose={() => setAddOpen(false)} />
+      <AddMembersModal open={addOpen} onClose={() => setAddOpen(false)} orgId={orgId} />
     </div>
   );
 }
 
-function AddMembersModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+function AddMembersModal({
+  open,
+  onClose,
+  orgId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  orgId?: string;
+}) {
   const router = useRouter();
   const [error, setError] = React.useState("");
   const [saving, setSaving] = React.useState(false);
 
   const save = async (fd: FormData) => {
+    if (orgId) fd.set("orgId", orgId);
     setSaving(true);
     const res = await adminAddMembersAction(null, fd);
     setSaving(false);

@@ -58,7 +58,13 @@ function todayValue(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function NewChallengeForm() {
+export function NewChallengeForm({
+  orgs = [],
+  currentOrgId = "",
+}: {
+  orgs?: { id: string; name: string }[];
+  currentOrgId?: string;
+}) {
   const router = useRouter();
   const [frequency, setFrequency] = React.useState<Frequency>("MONTHLY");
   const [visibility, setVisibility] = React.useState("GROUP_TOTALS");
@@ -86,6 +92,20 @@ export function NewChallengeForm() {
         <Card>
           <CardHeader title="Basic information" subtitle="What is this challenge about?" />
           <CardContent className="flex flex-col gap-4">
+            {orgs.length > 0 && (
+              <Field
+                label="Organization"
+                hint="Pick which organization this challenge belongs to."
+              >
+                <Select name="orgId" defaultValue={currentOrgId}>
+                  {orgs.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            )}
             <Field label="Challenge Name">
               <Input name="name" placeholder="e.g. ICDeC Coworker IPON 2026" autoFocus />
             </Field>

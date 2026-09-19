@@ -25,16 +25,21 @@ export default async function DashboardPage() {
   const stats = await getPersonalStats(user.id);
   const role = user.role;
   const isAdmin = isOrgAdmin(user);
+  const isSuper = role === "SUPER_ADMIN";
+  const orgWhere = isSuper ? {} : { orgId: user.orgId };
 
   const myChallenges = await prisma.challenge.findMany({
     where: isAdmin
-      ? { orgId: user.orgId, status: "ACTIVE" }
+      ? { ...orgWhere, status: "ACTIVE" }
       : {
-          orgId: user.orgId,
+          ...orgWhere,
           OR: [{ members: { some: { userId: user.id, status: "ACTIVE" } } }, { createdById: user.id }],
           status: "ACTIVE",
         },
-    include: {
+    select: {
+      id: true,
+      name: true,
+      orgId: true,
       members: { where: { userId: user.id } },
       transactions: {
         where: { status: "CONFIRMED" },
@@ -45,8 +50,7 @@ export default async function DashboardPage() {
   });
 
   const memberOptions = await getActiveMemberOptions(myChallenges.map((c) => c.id));
-
-  const overview = isAdmin ? await getOrganizerOverview(user.orgId) : null;
+  const overview = isAdmin ? await getOrganizerOverview(isSuper ? undefined : user.orgId) : null;
 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -55,11 +59,11 @@ export default async function DashboardPage() {
     ? (
         await prisma.hulogTransaction.findMany({
           where: {
-            challenge: { orgId: user.orgId, status: { not: "ARCHIVED" } },
+            challenge: { ...orgWhere, status: { not: "ARCHIVED" } },
             status: { not: "VOIDED" },
           },
           include: {
-            challenge: { select: { name: true } },
+            challenge: { select: { name: true, orgId: true } },
             member: { include: { user: { select: { name: true } } } },
           },
           orderBy: { transactionDate: "desc" },
@@ -81,7 +85,7 @@ export default async function DashboardPage() {
           where: {
             member: { userId: user.id },
             status: { not: "VOIDED" },
-            challenge: { orgId: user.orgId, status: { not: "ARCHIVED" } },
+            challenge: { ...orgWhere, status: { not: "ARCHIVED" } },
           },
           include: { challenge: { select: { name: true } } },
           orderBy: { transactionDate: "desc" },
@@ -99,7 +103,16 @@ export default async function DashboardPage() {
         memberName: null as string | null,
       }));
 
-  const globalSeries = await getChallengeMonthlySeriesForUser(user.orgId, role, user.id);
+  const orgNames =
+    isSuper && myChallenges.length > 0
+      ? Object.fromEntries(
+          (await prisma.organization.findMany({
+            select: { id: true, name: true },
+          })).map((o) => [o.id, o.name])
+        )
+      : {};
+
+  const globalSeries = await getChallengeMonthlySeriesForUser(user.orgId, role, user.id, isSuper);
   const chartData = isAdmin ? globalSeries : stats.monthly;
 
   return (
@@ -114,10 +127,12 @@ export default async function DashboardPage() {
         subtitle={
           role === "ADMIN"
             ? "Your savings and what's happening across your challenges."
-            : "Here's where all your hulog comes together."
+            : role === "SUPER_ADMIN"
+              ? "A bird's-eye view across every organization on this instance."
+              : "Here's where all your hulog comes together."
         }
         actions={
-          <AddHulogButton challenges={strip(myChallenges, memberOptions)} isAdmin={role === "ADMIN"} />
+          <AddHulogButton challenges={strip(myChallenges, memberOptions, isSuper ? orgNames : undefined)} isAdmin={role === "ADMIN" || role === "SUPER_ADMIN"} />
         }
       />
 
@@ -258,6 +273,9 @@ export default async function DashboardPage() {
                         <p className="text-xs font-semibold text-brand-600">
                           {money(thisMonth)}{" "}
                           <span className="font-medium text-ink-soft/60">this month</span>
+                          {isSuper && orgNames[c.orgId] && (
+                            <span className="font-medium text-ink-soft/50"> · {orgNames[c.orgId]}</span>
+                          )}
                         </p>
                       </div>
                       <div className="shrink-0 text-right">
@@ -328,22 +346,29 @@ function monthName(): string {
 }
 
 function strip(
-  challenges: { id: string; name: string }[],
-  memberOptions: Record<string, { id: string; name: string }[]>
+  challenges: { id: string; name: string; orgId: string }[],
+  memberOptions: Record<string, { id: string; name: string }[]>,
+  orgNames?: Record<string, string>
 ) {
   return challenges.map((c) => ({
     id: c.id,
     name: c.name,
+    orgName: orgNames ? orgNames[c.orgId] ?? undefined : undefined,
     members: memberOptions[c.id] ?? [],
   }));
 }
 
-async function getChallengeMonthlySeriesForUser(orgId: string, role: string, userId: string) {
+async function getChallengeMonthlySeriesForUser(
+  orgId: string,
+  role: string,
+  userId: string,
+  isSuper = false
+) {
   const challenges = await prisma.challenge.findMany({
     where:
       role === "ADMIN" || role === "SUPER_ADMIN"
-        ? { orgId, status: { not: "ARCHIVED" } }
-        : { orgId, members: { some: { userId, status: "ACTIVE" } } },
+        ? { ...(isSuper ? {} : { orgId }), status: { not: "ARCHIVED" } }
+        : { ...(isSuper ? {} : { orgId }), members: { some: { userId, status: "ACTIVE" } } },
     select: { id: true },
   });
   const ids = challenges.map((c) => c.id);

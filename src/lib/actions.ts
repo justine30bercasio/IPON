@@ -161,6 +161,16 @@ export async function createChallengeAction(
     return { ok: false, error: "Only organizers can create challenges." };
   }
 
+  let targetOrgId = user.orgId;
+  if (user.role === "SUPER_ADMIN") {
+    const rawOrg = String(formData.get("orgId") ?? "").trim();
+    if (rawOrg) {
+      const org = await prisma.organization.findUnique({ where: { id: rawOrg } });
+      if (!org) return { ok: false, error: "Organization not found." };
+      targetOrgId = org.id;
+    }
+  }
+
   const name = String(formData.get("name") ?? "").trim();
   if (name.length < 3) return { ok: false, error: "Challenge name must be at least 3 characters." };
 
@@ -202,7 +212,7 @@ export async function createChallengeAction(
 
   const challenge = await prisma.challenge.create({
     data: {
-      orgId: user.orgId,
+      orgId: targetOrgId,
       name,
       description,
       startDate,
@@ -828,6 +838,9 @@ export async function adminAddMembersAction(
 ): Promise<ActionResult> {
   const user = await requireAdmin();
 
+  const rawOrg = String(formData.get("orgId") ?? "").trim();
+  const targetOrgId = rawOrg && hasOrgAccess(user, rawOrg) ? rawOrg : user.orgId;
+
   const raw = String(formData.get("members") ?? "");
   const names = raw
     .split("\n")
@@ -869,7 +882,7 @@ export async function adminAddMembersAction(
         passwordHash: await hashPassword(password),
         role: "MEMBER",
         isActive: true,
-        orgId: user.orgId,
+        orgId: targetOrgId,
       },
     });
     newAccounts.push({ email, password });

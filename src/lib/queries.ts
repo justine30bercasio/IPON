@@ -136,9 +136,9 @@ export interface OrganizerOverview {
   pending: number;
 }
 
-export async function getOrganizerOverview(orgId: string): Promise<OrganizerOverview> {
+export async function getOrganizerOverview(orgId?: string): Promise<OrganizerOverview> {
   const challenges = await prisma.challenge.findMany({
-    where: { orgId, status: { not: "ARCHIVED" } },
+    where: { ...(orgId ? { orgId } : {}), status: { not: "ARCHIVED" } },
     include: {
       members: { select: { userId: true } },
       transactions: {
@@ -162,7 +162,7 @@ export async function getOrganizerOverview(orgId: string): Promise<OrganizerOver
     }
   }
   const pending = await prisma.hulogTransaction.count({
-    where: { challenge: { orgId, status: { not: "ARCHIVED" } }, status: "PENDING" },
+    where: { challenge: { ...(orgId ? { orgId } : {}), status: { not: "ARCHIVED" } }, status: "PENDING" },
   });
   return { total, count, thisMonth, members: memberIds.size, pending };
 }

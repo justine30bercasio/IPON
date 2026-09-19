@@ -13,14 +13,15 @@ import { AddHulogButton } from "@/components/dashboard/add-hulog-button";
 export default async function HulogHistoryPage() {
   const user = await requireUser();
   const isAdmin = isOrgAdmin(user);
+  const isSuper = user.role === "SUPER_ADMIN";
 
   const stats = isAdmin
-    ? await getOrganizerOverview(user.orgId)
+    ? await getOrganizerOverview(isSuper ? undefined : user.orgId)
     : await getPersonalStats(user.id);
 
   const challenges = await prisma.challenge.findMany({
     where: isAdmin
-      ? { orgId: user.orgId, status: { not: "ARCHIVED" } }
+      ? { ...(isSuper ? {} : { orgId: user.orgId }), status: { not: "ARCHIVED" } }
       : {
           orgId: user.orgId,
           OR: [
@@ -34,6 +35,12 @@ export default async function HulogHistoryPage() {
     },
   });
 
+  const orgNames = isSuper
+    ? Object.fromEntries(
+        (await prisma.organization.findMany({ select: { id: true, name: true } })).map((o) => [o.id, o.name])
+      )
+    : {};
+
   const membershipMap = new Map(challenges.map((c) => [c.id, c.members[0]?.status ?? null]));
   const canHulog = challenges.filter(
     (c) =>
@@ -46,10 +53,13 @@ export default async function HulogHistoryPage() {
 
   const txs = await prisma.hulogTransaction.findMany({
     where: isAdmin
-      ? { challenge: { orgId: user.orgId, status: { not: "ARCHIVED" } }, status: { not: "VOIDED" } }
+      ? {
+          challenge: { ...(isSuper ? {} : { orgId: user.orgId }), status: { not: "ARCHIVED" } },
+          status: { not: "VOIDED" },
+        }
       : { member: { userId: user.id }, status: { not: "VOIDED" } },
     include: {
-      challenge: { select: { id: true, name: true } },
+      challenge: { select: { id: true, name: true, orgId: true } },
       member: { include: { user: { select: { name: true } } } },
     },
     orderBy: { transactionDate: "desc" },
@@ -90,6 +100,7 @@ export default async function HulogHistoryPage() {
             challenges={canHulog.map((c) => ({
               id: c.id,
               name: c.name,
+              orgName: isSuper ? orgNames[c.orgId] : undefined,
               members: memberOptions[c.id] ?? [],
             }))}
             isAdmin={isAdmin}
