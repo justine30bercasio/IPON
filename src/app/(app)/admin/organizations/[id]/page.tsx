@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
-import { Trophy, ArrowRight, Building2, ShieldCheck } from "lucide-react";
+import { Trophy, ArrowRight, Building2, ShieldCheck, UserCog } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { money } from "@/lib/format";
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RenameOrgForm } from "@/components/admin/rename-org-form";
+import { CreateOrgAdminForm } from "@/components/admin/create-org-admin-form";
 
 export default async function OrganizationDetailPage({
   params,
@@ -216,6 +217,20 @@ export default async function OrganizationDetailPage({
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader
+            title="Create organization admin"
+            subtitle="Provision the first admin for this organization. They can then add members and challenges."
+            action={
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+                <UserCog className="h-4 w-4" />
+              </span>
+            }
+          />
+          <CardContent>
+            <CreateOrgAdminForm orgId={org.id} />
+          </CardContent>
+        </Card>
         <Card>
           <CardHeader
             title="Rename organization"

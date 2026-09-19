@@ -52,6 +52,7 @@ export function AppShell({
     id: string;
     name: string;
     status: string;
+    orgName?: string;
     members?: { id: string; name: string }[];
   }[];
   unread: number;
@@ -117,7 +118,14 @@ export function AppShell({
                 <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
                   <Coins className="h-4 w-4" />
                 </span>
-                <span className="truncate">{c.name}</span>
+                <span className="min-w-0">
+                  <span className="block truncate">{c.name}</span>
+                  {user.role === "SUPER_ADMIN" && c.orgName && (
+                    <span className="block truncate text-[10px] font-semibold text-brand-600/70">
+                      {c.orgName}
+                    </span>
+                  )}
+                </span>
               </Link>
             ))}
             {challenges.length > 6 && (

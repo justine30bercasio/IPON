@@ -11,19 +11,23 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const admin = isOrgAdmin(user);
   const challenges = await prisma.challenge.findMany({
     where: {
-      orgId: user.orgId,
-      OR: [
-        { createdById: user.id },
-        {
-          members: {
-            some: { userId: user.id, status: "ACTIVE" },
-          },
-        },
-        ...(admin ? [{ status: { not: "ARCHIVED" as const } }] : []),
-      ],
       status: { not: "ARCHIVED" },
+      ...(user.role === "SUPER_ADMIN"
+        ? {}
+        : {
+            orgId: user.orgId,
+            OR: [
+              { createdById: user.id },
+              {
+                members: {
+                  some: { userId: user.id, status: "ACTIVE" },
+                },
+              },
+              ...(admin ? [{ status: { not: "ARCHIVED" as const } }] : []),
+            ],
+          }),
     },
-    select: { id: true, name: true, status: true },
+    select: { id: true, name: true, status: true, org: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
   });
 
@@ -43,7 +47,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       user={{ id: user.id, name: user.name, role: user.role, email: user.email }}
       orgName={org?.name ?? ""}
       challenges={challenges.map((c) => ({
-        ...c,
+        id: c.id,
+        name: c.name,
+        status: c.status,
+        orgName: c.org.name,
         members: memberOptions[c.id] ?? [],
       }))}
       unread={unread}

@@ -27,6 +27,7 @@ const paymentOptions = [
 export type ChallengeOption = {
   id: string;
   name: string;
+  orgName?: string;
   members?: { id: string; name: string }[];
 };
 
@@ -128,7 +129,7 @@ export function AddHulogModal({
             >
               {challenges.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name}
+                  {c.name}{c.orgName ? ` — ${c.orgName}` : ""}
                 </option>
               ))}
             </Select>

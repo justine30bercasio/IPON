@@ -1171,6 +1171,61 @@ export async function renameOrganizationAction(
   return { ok: true, message: "Organization renamed." };
 }
 
+export async function createOrgAdminAction(
+  orgId: string,
+  prev: unknown,
+  formData: FormData
+): Promise<ActionResult> {
+  const user = await requireAdmin();
+  if (user.role !== "SUPER_ADMIN") {
+    return { ok: false, error: "Super admin access required." };
+  }
+  const org = await prisma.organization.findUnique({ where: { id: orgId } });
+  if (!org) return { ok: false, error: "Organization not found." };
+
+  const name = String(formData.get("name") ?? "").trim();
+  if (name.length < 2) return { ok: false, error: "Name must be at least 2 characters." };
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { ok: false, error: "Enter a valid email address." };
+  }
+  const password = String(formData.get("password") ?? "");
+  const pwError = validateNewPassword(password);
+  if (pwError) return { ok: false, error: pwError };
+
+  const existing = await prisma.user.findFirst({
+    where: { OR: [{ email }, { username: email.split("@")[0] }] },
+  });
+  if (existing) return { ok: false, error: "An account with that email or username already exists." };
+
+  const baseUsername = email
+    .split("@")[0]
+    .replace(/[^a-z0-9_.-]/gi, "")
+    .toLowerCase();
+  let username = baseUsername;
+  let suffix = 1;
+  while (await prisma.user.findUnique({ where: { username } })) {
+    username = `${baseUsername}-${suffix++}`;
+  }
+
+  await prisma.user.create({
+    data: {
+      name,
+      email,
+      username,
+      passwordHash: await hashPassword(password),
+      role: "ADMIN",
+      isActive: true,
+      orgId: org.id,
+    },
+  });
+  revalidateAll();
+  return {
+    ok: true,
+    message: `Admin ${name} created for ${org.name}. Sign in with ${email}.`,
+  };
+}
+
 async function getOrCreateChallengeForAdmin(
   user: SessionUser,
   challengeId: string
